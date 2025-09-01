@@ -1,0 +1,98 @@
+@startuml Retail_Sales_Analysis
+
+!define RECTANGLE class
+
+title Retail Sales Data Analysis - Data Model and Relationships
+
+package "Sales Transaction" {
+    RECTANGLE Transaction {
+        + Transaction ID: Integer
+        + Date: Date
+        + Customer ID: String
+        + Gender: String
+        + Age: Integer
+        + Product Category: String
+        + Quantity: Integer
+        + Price per Unit: Float
+        + Total Amount: Float
+    }
+}
+
+package "Key Insights" {
+    RECTANGLE Sales_Overview {
+        + Total Transactions: 1000
+        + Total Revenue: 456,000
+        + Average Transaction: 456.00
+        + Unique Customers: 1000
+    }
+    
+    RECTANGLE Top_Categories {
+        + Category 1: Electronics
+        + Category 2: Clothing
+        + Category 3: Beauty
+        + Category 4: N/A
+        + Category 5: N/A
+    }
+    
+    RECTANGLE Gender_Analysis {
+        + Male Customers: 490
+        + Female Customers: 510
+        + Male Avg Spending: 455.43
+        + Female Avg Spending: 456.55
+    }
+}
+
+package "Performance Metrics" {
+    RECTANGLE Category_Performance {
+        + Total Categories: 3
+        + Highest Revenue Category: Electronics
+        + Average Price Range: 25.00 - 500.00
+    }
+    
+    RECTANGLE Customer_Behavior {
+        + Average Age: 41.4
+        + Age Range: 18 - 64
+        + Average Quantity per Transaction: 2.5
+    }
+    
+    RECTANGLE Statistical_Insights {
+        + Gender Spending Difference: Not Significant
+        + Age-Spending Correlation: Not Significant
+        + Quantity-Price Correlation: Not Significant
+    }
+}
+
+package "Temporal Analysis" {
+    RECTANGLE Time_Patterns {
+        + Date Range: 2023-01-01 to 2024-01-01
+        + Total Months: 12
+        + Average Daily Transactions: 2.9
+    }
+}
+
+' Relationships
+Transaction ||--|| Sales_Overview : "generates"
+Transaction ||--|| Top_Categories : "belongs to"
+Transaction ||--|| Gender_Analysis : "represents"
+Transaction ||--|| Category_Performance : "contributes to"
+Transaction ||--|| Customer_Behavior : "reflects"
+Transaction ||--|| Statistical_Insights : "validates"
+Transaction ||--|| Time_Patterns : "occurs during"
+
+note right of Top_Categories
+  Top revenue categories:
+  Electronics: 156,905
+  Clothing: 155,580
+  Beauty: 143,515
+  N/A: N/A
+  N/A: N/A
+end note
+
+note right of Statistical_Insights
+  Statistical test results:
+  Gender difference p-value: 0.9748
+  Age correlation: -0.061
+  Quantity-Price correlation: 0.018
+end note
+
+@enduml

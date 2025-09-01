@@ -1,0 +1,103 @@
+@startuml Istanbul_Sales_Analysis
+
+!define RECTANGLE class
+
+title Istanbul Sales Data Analysis - Data Model and Relationships
+
+package "Sales Transaction" {
+    RECTANGLE Transaction {
+        + invoice_no: String
+        + customer_id: String
+        + gender: String
+        + age: Integer
+        + category: String
+        + quantity: Integer
+        + price: Float
+        + payment_method: String
+        + invoice_date: Date
+        + shopping_mall: String
+        + total_amount: Float
+    }
+}
+
+package "Key Insights" {
+    RECTANGLE Sales_Overview {
+        + Total Transactions: 503
+        + Total Revenue: 1,831,759
+        + Average Transaction: 3641.67
+        + Unique Customers: 371
+    }
+    
+    RECTANGLE Top_Categories {
+        + Category 1: Technology
+        + Category 2: Clothing
+        + Category 3: Shoes
+        + Category 4: Cosmetics
+        + Category 5: Toys
+    }
+    
+    RECTANGLE Top_Malls {
+        + Mall 1: Metrocity
+        + Mall 2: Forum Istanbul
+        + Mall 3: Cevahir AVM
+        + Mall 4: Metropol AVM
+        + Mall 5: Emaar Square Mall
+    }
+}
+
+package "Performance Metrics" {
+    RECTANGLE Category_Performance {
+        + Total Categories: 8
+        + Highest Revenue Category: Technology
+        + Average Price Range: 5.23 - 26250.00
+    }
+    
+    RECTANGLE Mall_Performance {
+        + Total Malls: 9
+        + Highest Revenue Mall: Metrocity
+        + Average Transactions per Mall: 56
+    }
+    
+    RECTANGLE Payment_Analysis {
+        + Payment Methods: 3
+        + Most Popular Method: Credit Card
+        + Average Transaction by Method: 4915.54
+    }
+}
+
+package "Customer Demographics" {
+    RECTANGLE Customer_Profile {
+        + Average Age: 40.9
+        + Age Range: 18 - 72
+        + Gender Distribution: 51.1% Female, 48.9% Male
+    }
+}
+
+' Relationships
+Transaction ||--|| Sales_Overview : "generates"
+Transaction ||--|| Top_Categories : "belongs to"
+Transaction ||--|| Top_Malls : "occurs at"
+Transaction ||--|| Category_Performance : "contributes to"
+Transaction ||--|| Mall_Performance : "contributes to"
+Transaction ||--|| Payment_Analysis : "uses"
+Transaction ||--|| Customer_Profile : "represents"
+
+note right of Top_Categories
+  Top revenue categories:
+  Technology: 1,397,550
+  Clothing: 214,557
+  Shoes: 158,142
+  Cosmetics: 20,208
+  Toys: 18,924
+end note
+
+note right of Top_Malls
+  Top revenue malls:
+  Metrocity: 638,736
+  Forum Istanbul: 273,235
+  Cevahir AVM: 270,973
+  Metropol AVM: 149,464
+  Emaar Square Mall: 141,669
+end note
+
+@enduml
