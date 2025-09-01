@@ -303,50 +303,370 @@ elif page == "🏙️ Istanbul Sales Analysis":
     if istanbul_df is not None:
         st.success(f"✅ Loaded {len(istanbul_df)} records with {len(istanbul_df.columns)} columns")
         
+        # Data cleaning and preprocessing
+        st.subheader("🔧 Data Preprocessing")
+        
+        # Clean the data
+        df_clean = istanbul_df.copy()
+        df_clean = df_clean.dropna()
+        
+        # Convert date column if it exists
+        date_columns = [col for col in df_clean.columns if 'date' in col.lower()]
+        if date_columns:
+            try:
+                df_clean['invoice_date'] = pd.to_datetime(df_clean[date_columns[0]])
+                df_clean['month'] = df_clean['invoice_date'].dt.month
+                df_clean['year'] = df_clean['invoice_date'].dt.year
+                df_clean['day_of_week'] = df_clean['invoice_date'].dt.day_name()
+                df_clean['quarter'] = df_clean['invoice_date'].dt.quarter
+                st.success("✅ Date columns processed successfully")
+            except Exception as e:
+                st.warning(f"Could not process date column: {e}")
+        
+        # Calculate total amount if quantity and price exist
+        quantity_cols = [col for col in df_clean.columns if 'quantity' in col.lower()]
+        price_cols = [col for col in df_clean.columns if 'price' in col.lower()]
+        
+        if quantity_cols and price_cols:
+            df_clean['total_amount'] = df_clean[quantity_cols[0]] * df_clean[price_cols[0]]
+            st.success("✅ Total amount calculated")
+        
         # Data overview
         col1, col2 = st.columns([2, 1])
         
         with col1:
             st.subheader("📋 Data Overview")
-            st.dataframe(istanbul_df.head(10))
+            st.dataframe(df_clean.head(10))
         
         with col2:
             st.subheader("📊 Data Info")
             buffer = io.StringIO()
-            istanbul_df.info(buf=buffer)
+            df_clean.info(buf=buffer)
             st.text(buffer.getvalue())
         
-        # Regional analysis
-        st.subheader("🏙️ Regional Analysis")
+        # Key Metrics Dashboard
+        st.subheader("📊 Key Performance Metrics")
         
-        # Find location/region columns
-        location_cols = [col for col in istanbul_df.columns if any(word in col.lower() for word in ['region', 'location', 'city', 'district', 'area'])]
-        
-        if location_cols:
-            selected_location_col = st.selectbox("Select location column:", location_cols)
+        if 'total_amount' in df_clean.columns:
+            col1, col2, col3, col4 = st.columns(4)
             
-            location_counts = istanbul_df[selected_location_col].value_counts()
-            fig = px.pie(values=location_counts.values, names=location_counts.index, title="Distribution by Location")
+            with col1:
+                total_revenue = df_clean['total_amount'].sum()
+                st.metric("Total Revenue", f"${total_revenue:,.2f}")
+            
+            with col2:
+                avg_transaction = df_clean['total_amount'].mean()
+                st.metric("Avg Transaction", f"${avg_transaction:.2f}")
+            
+            with col3:
+                total_transactions = len(df_clean)
+                st.metric("Total Transactions", f"{total_transactions:,}")
+            
+            with col4:
+                unique_customers = df_clean['customer_id'].nunique() if 'customer_id' in df_clean.columns else "N/A"
+                st.metric("Unique Customers", f"{unique_customers:,}" if isinstance(unique_customers, int) else unique_customers)
+        
+        # Category Analysis
+        if 'category' in df_clean.columns:
+            st.subheader("📦 Category Performance Analysis")
+            
+            category_sales = df_clean.groupby('category')['total_amount'].sum().sort_values(ascending=False)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Top categories by revenue
+                fig = px.bar(
+                    x=category_sales.head(10).values,
+                    y=category_sales.head(10).index,
+                    orientation='h',
+                    title="Top 10 Categories by Revenue",
+                    labels={'x': 'Total Revenue ($)', 'y': 'Category'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Category statistics
+                category_stats = df_clean.groupby('category').agg({
+                    'total_amount': ['sum', 'mean', 'count'],
+                    'quantity': ['sum', 'mean'] if 'quantity' in df_clean.columns else 'count'
+                }).round(2)
+                
+                # Flatten column names
+                category_stats.columns = ['_'.join(col).strip() for col in category_stats.columns]
+                st.dataframe(category_stats.head(10))
+        
+        # Shopping Mall Analysis
+        if 'shopping_mall' in df_clean.columns:
+            st.subheader("🏬 Shopping Mall Performance")
+            
+            mall_sales = df_clean.groupby('shopping_mall')['total_amount'].sum().sort_values(ascending=False)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig = px.bar(
+                    x=mall_sales.values,
+                    y=mall_sales.index,
+                    orientation='h',
+                    title="Revenue by Shopping Mall",
+                    labels={'x': 'Total Revenue ($)', 'y': 'Shopping Mall'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                mall_stats = df_clean.groupby('shopping_mall').agg({
+                    'total_amount': ['sum', 'mean', 'count'],
+                    'customer_id': 'nunique' if 'customer_id' in df_clean.columns else 'count'
+                }).round(2)
+                
+                mall_stats.columns = ['_'.join(col).strip() for col in mall_stats.columns]
+                st.dataframe(mall_stats)
+        
+        # Payment Method Analysis
+        if 'payment_method' in df_clean.columns:
+            st.subheader("💳 Payment Method Analysis")
+            
+            payment_analysis = df_clean.groupby('payment_method').agg({
+                'total_amount': ['sum', 'mean', 'count'],
+                'quantity': ['sum', 'mean'] if 'quantity' in df_clean.columns else 'count'
+            }).round(2)
+            
+            payment_analysis.columns = ['_'.join(col).strip() for col in payment_analysis.columns]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Payment method distribution
+                payment_counts = df_clean['payment_method'].value_counts()
+                fig = px.pie(
+                    values=payment_counts.values,
+                    names=payment_counts.index,
+                    title="Payment Method Distribution"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.dataframe(payment_analysis)
+        
+        # Temporal Analysis
+        if 'month' in df_clean.columns and 'year' in df_clean.columns:
+            st.subheader("📅 Temporal Patterns Analysis")
+            
+            # Monthly trends
+            monthly_sales = df_clean.groupby(['year', 'month'])['total_amount'].sum().reset_index()
+            monthly_sales['date'] = pd.to_datetime(monthly_sales[['year', 'month']].assign(day=1))
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig = px.line(
+                    monthly_sales,
+                    x='date',
+                    y='total_amount',
+                    title="Monthly Sales Trend",
+                    labels={'total_amount': 'Total Revenue ($)', 'date': 'Month'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Day of week analysis
+                if 'day_of_week' in df_clean.columns:
+                    dow_sales = df_clean.groupby('day_of_week')['total_amount'].sum()
+                    dow_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    dow_sales = dow_sales.reindex(dow_order)
+                    
+                    fig = px.bar(
+                        x=dow_sales.index,
+                        y=dow_sales.values,
+                        title="Sales by Day of Week",
+                        labels={'x': 'Day of Week', 'y': 'Total Revenue ($)'}
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+        
+        # Customer Demographics
+        if 'age' in df_clean.columns:
+            st.subheader("👥 Customer Demographics")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Age distribution
+                fig = px.histogram(
+                    df_clean,
+                    x='age',
+                    nbins=20,
+                    title="Customer Age Distribution",
+                    labels={'age': 'Age', 'count': 'Count'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Age group analysis
+                df_clean['age_group'] = pd.cut(
+                    df_clean['age'],
+                    bins=[0, 25, 35, 45, 55, 100],
+                    labels=['18-25', '26-35', '36-45', '46-55', '55+']
+                )
+                
+                age_group_sales = df_clean.groupby('age_group')['total_amount'].sum()
+                fig = px.bar(
+                    x=age_group_sales.index,
+                    y=age_group_sales.values,
+                    title="Revenue by Age Group",
+                    labels={'x': 'Age Group', 'y': 'Total Revenue ($)'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Gender Analysis
+        if 'gender' in df_clean.columns:
+            st.subheader("👫 Gender-based Analysis")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Gender distribution
+                gender_counts = df_clean['gender'].value_counts()
+                fig = px.pie(
+                    values=gender_counts.values,
+                    names=gender_counts.index,
+                    title="Gender Distribution"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Gender vs transaction value
+                gender_avg = df_clean.groupby('gender')['total_amount'].mean()
+                fig = px.bar(
+                    x=gender_avg.index,
+                    y=gender_avg.values,
+                    title="Average Transaction Value by Gender",
+                    labels={'x': 'Gender', 'y': 'Average Transaction Value ($)'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Correlation Analysis
+        st.subheader("🔗 Correlation Analysis")
+        
+        numeric_columns = df_clean.select_dtypes(include=[np.number]).columns.tolist()
+        if len(numeric_columns) > 1:
+            correlation_matrix = df_clean[numeric_columns].corr()
+            
+            fig = px.imshow(
+                correlation_matrix,
+                title="Correlation Matrix",
+                color_continuous_scale='RdBu',
+                aspect="auto",
+                labels=dict(x="Variables", y="Variables", color="Correlation")
+            )
             st.plotly_chart(fig, use_container_width=True)
         
-        # Sales analysis
-        sales_cols = [col for col in istanbul_df.columns if 'sales' in col.lower() or 'amount' in col.lower() or 'revenue' in col.lower()]
-        
-        if sales_cols:
-            st.subheader("💰 Sales Analysis")
-            selected_sales_col = st.selectbox("Select sales column:", sales_cols)
+        # Price vs Quantity Analysis
+        if 'price' in df_clean.columns and 'quantity' in df_clean.columns:
+            st.subheader("💰 Price vs Quantity Analysis")
             
-            # Sales distribution
-            fig = px.histogram(istanbul_df, x=selected_sales_col, title=f"Distribution of {selected_sales_col}")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Scatter plot
+                fig = px.scatter(
+                    df_clean,
+                    x='price',
+                    y='quantity',
+                    title="Price vs Quantity Relationship",
+                    labels={'price': 'Price ($)', 'quantity': 'Quantity'},
+                    opacity=0.6
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Price distribution by category
+                if 'category' in df_clean.columns:
+                    category_price = df_clean.groupby('category')['price'].mean().sort_values(ascending=False)
+                    fig = px.bar(
+                        x=category_price.values,
+                        y=category_price.index,
+                        orientation='h',
+                        title="Average Price by Category",
+                        labels={'x': 'Average Price ($)', 'y': 'Category'}
+                    )
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+        
+        # Statistical Summary
+        st.subheader("📊 Comprehensive Statistical Summary")
+        st.dataframe(df_clean.describe())
+        
+        # Download processed data
+        st.subheader("💾 Download Processed Data")
+        
+        csv = df_clean.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Processed Data as CSV",
+            data=csv,
+            file_name="istanbul_sales_processed.csv",
+            mime="text/csv"
+        )
+        
+        # Export visualizations
+        st.subheader("📊 Export Visualizations")
+        
+        # Create a comprehensive visualization
+        if 'total_amount' in df_clean.columns and 'category' in df_clean.columns:
+            # Create subplot with multiple charts
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('Top Categories by Revenue', 'Revenue by Shopping Mall', 
+                              'Monthly Sales Trend', 'Payment Method Distribution'),
+                specs=[[{"type": "bar"}, {"type": "bar"}],
+                       [{"type": "scatter"}, {"type": "pie"}]]
+            )
+            
+            # Top categories
+            top_categories = df_clean.groupby('category')['total_amount'].sum().sort_values(ascending=False).head(8)
+            fig.add_trace(
+                go.Bar(x=top_categories.values, y=top_categories.index, orientation='h', name="Categories"),
+                row=1, col=1
+            )
+            
+            # Top malls
+            if 'shopping_mall' in df_clean.columns:
+                top_malls = df_clean.groupby('shopping_mall')['total_amount'].sum().sort_values(ascending=False).head(8)
+                fig.add_trace(
+                    go.Bar(x=top_malls.values, y=top_malls.index, orientation='h', name="Malls"),
+                    row=1, col=2
+                )
+            
+            # Monthly trend
+            if 'month' in df_clean.columns and 'year' in df_clean.columns:
+                monthly_trend = df_clean.groupby(['year', 'month'])['total_amount'].sum().reset_index()
+                monthly_trend['date'] = pd.to_datetime(monthly_trend[['year', 'month']].assign(day=1))
+                fig.add_trace(
+                    go.Scatter(x=monthly_trend['date'], y=monthly_trend['total_amount'], mode='lines+markers', name="Monthly Trend"),
+                    row=2, col=1
+                )
+            
+            # Payment methods
+            if 'payment_method' in df_clean.columns:
+                payment_counts = df_clean['payment_method'].value_counts()
+                fig.add_trace(
+                    go.Pie(labels=payment_counts.index, values=payment_counts.values, name="Payment Methods"),
+                    row=2, col=2
+                )
+            
+            fig.update_layout(height=800, title_text="Istanbul Sales Analysis Dashboard")
             st.plotly_chart(fig, use_container_width=True)
             
-            # Box plot for outliers
-            fig = px.box(istanbul_df, y=selected_sales_col, title=f"Box Plot of {selected_sales_col}")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Statistical summary
-        st.subheader("📊 Statistical Summary")
-        st.dataframe(istanbul_df.describe())
+            # Download visualization
+            img_bytes = fig.to_image(format="png")
+            st.download_button(
+                label="📥 Download Dashboard as PNG",
+                data=img_bytes,
+                file_name="istanbul_sales_dashboard.png",
+                mime="image/png"
+            )
     
     else:
         st.error("❌ Could not load Istanbul sales data")
