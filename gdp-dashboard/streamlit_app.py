@@ -65,37 +65,38 @@ page = st.sidebar.selectbox(
 # BigQuery connection setup
 @st.cache_resource
 def get_bigquery_client():
-    """Initialize BigQuery client with service account credentials"""
+    """Initialize BigQuery client with service account credentials from Streamlit secrets"""
     try:
-        import os
-        
-        # Get the current file's directory
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Construct the absolute path to the credentials file
-        credentials_path = os.path.join(current_dir, "..", "API.JSON")
-        
-        # Check if file exists
-        if not os.path.exists(credentials_path):
-            st.error(f"❌ Credentials file not found at: {credentials_path}")
-            st.info(f"💡 Current working directory: {os.getcwd()}")
-            st.info(f"💡 Looking for file in: {current_dir}")
+        # Always use Streamlit secrets (both local and deployed)
+        if 'gcp_service_account' in st.secrets:
+            try:
+                # Create credentials from secrets
+                credentials = service_account.Credentials.from_service_account_info(
+                    st.secrets["gcp_service_account"],
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+                
+                client = bigquery.Client(
+                    credentials=credentials,
+                    project=credentials.project_id
+                )
+                
+                return client, credentials.project_id
+                
+            except Exception as e:
+                st.error(f"❌ Error creating BigQuery client from secrets: {e}")
+                st.info("💡 Please check your Streamlit Cloud secrets configuration")
+                return None, None
+                
+        else:
+            st.error("❌ BigQuery credentials not found in Streamlit secrets")
+            st.info("💡 Please add your GCP service account credentials to Streamlit Cloud secrets")
+            st.info("💡 Go to your app settings → Secrets and add the gcp_service_account section")
             return None, None
-        
-        credentials = service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        
-        client = bigquery.Client(
-            credentials=credentials,
-            project=credentials.project_id
-        )
-        
-        return client, credentials.project_id
+            
     except Exception as e:
         st.error(f"❌ Error connecting to BigQuery: {e}")
-        st.info(f"💡 Please check if the credentials file exists at: {credentials_path}")
+        st.info("💡 Check your Streamlit Cloud secrets configuration")
         return None, None
 
 # Home page
