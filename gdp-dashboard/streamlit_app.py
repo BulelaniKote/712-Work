@@ -1,18 +1,18 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np 
-import seaborn as sns
-import matplotlib.pyplot as plt
+import numpy as np
 from datetime import datetime
 import io
-import base64
+from google.cloud import bigquery
+from google.oauth2 import service_account
 
 # Page configuration
 st.set_page_config(
-    page_title="Data Analysis Dashboard",
+    page_title="Retail Sales Analysis Dashboard",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -33,704 +33,864 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
+        margin: 0.5rem 0;
     }
-    .sidebar .sidebar-content {
-        background-color: #f8f9fa;
+    .insight-box {
+        background-color: #e8f4fd;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #ff6b6b;
+        margin: 1rem 0;
+    }
+    .success-box {
+        background-color: #d4edda;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #28a745;
+        margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Title and header
-st.markdown('<h1 class="main-header">📊 Data Analysis Dashboard</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">📊 Retail Sales Analysis Dashboard</h1>', unsafe_allow_html=True)
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
 page = st.sidebar.selectbox(
     "Choose a page:",
-    ["🏠 Home", "📈 College Student Analysis", "🛍️ Retail Sales Analysis", "🏙️ Istanbul Sales Analysis", "📊 Data Explorer", "📋 About"]
+    ["🏠 Home", "📊 Dataset Analysis", "🔍 SQL Queries", "📈 Visualizations", "💡 Business Insights", "📋 About"]
 )
 
-# Load data functions
-@st.cache_data
-def load_college_data():
+# BigQuery connection setup
+@st.cache_resource
+def get_bigquery_client():
+    """Initialize BigQuery client with service account credentials"""
     try:
-        df = pd.read_csv("College Student Analysis.csv")
-        return df
+        import os
+        
+        # Get the current file's directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Construct the absolute path to the credentials file
+        credentials_path = os.path.join(current_dir, "istanbul_sales_analysis", "API.JSON")
+        
+        # Check if file exists
+        if not os.path.exists(credentials_path):
+            st.error(f"❌ Credentials file not found at: {credentials_path}")
+            st.info(f"💡 Current working directory: {os.getcwd()}")
+            st.info(f"💡 Looking for file in: {current_dir}")
+            return None, None
+        
+        credentials = service_account.Credentials.from_service_account_file(
+            credentials_path,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        
+        client = bigquery.Client(
+            credentials=credentials,
+            project=credentials.project_id
+        )
+        
+        return client, credentials.project_id
     except Exception as e:
-        st.error(f"Error loading college data: {e}")
-        return None
-
-@st.cache_data
-def load_retail_data():
-    try:
-        df = pd.read_csv("retail_sales_dataset.csv")
-        return df
-    except Exception as e:
-        st.error(f"Error loading retail data: {e}")
-        return None
-
-@st.cache_data
-def load_istanbul_data():
-    try:
-        df = pd.read_csv("istanbul_sales_data.csv")
-        return df
-    except Exception as e:
-        st.error(f"Error loading Istanbul data: {e}")
-        return None
+        st.error(f"❌ Error connecting to BigQuery: {e}")
+        st.info(f"💡 Please check if the credentials file exists at: istanbul_sales_analysis/API.JSON")
+        return None, None
 
 # Home page
 if page == "🏠 Home":
-    st.markdown("## Welcome to the Data Analysis Dashboard!")
+    st.markdown("## 🎯 Retail Sales Dataset Analysis")
+    st.markdown("**Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`")
+    st.markdown("**Source:** Kaggle Retail Sales Dataset")
     
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>📚 College Students</h3>
-            <p>Analyze student performance, demographics, and academic trends</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>🛍️ Retail Sales</h3>
-            <p>Explore sales patterns, product performance, and market trends</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>🏙️ Istanbul Sales</h3>
-            <p>Discover regional sales insights and business performance</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Quick stats
-    st.subheader("📊 Quick Statistics")
-    
-    college_df = load_college_data()
-    retail_df = load_retail_data()
-    istanbul_df = load_istanbul_data()
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if college_df is not None:
-            st.metric("College Students", f"{len(college_df):,}")
-        else:
-            st.metric("College Students", "N/A")
-    
-    with col2:
-        if retail_df is not None:
-            st.metric("Retail Records", f"{len(retail_df):,}")
-        else:
-            st.metric("Retail Records", "N/A")
-    
-    with col3:
-        if istanbul_df is not None:
-            st.metric("Istanbul Records", f"{len(istanbul_df):,}")
-        else:
-            st.metric("Istanbul Records", "N/A")
-    
-    with col4:
-        total_records = sum([
-            len(college_df) if college_df is not None else 0,
-            len(retail_df) if retail_df is not None else 0,
-            len(istanbul_df) if istanbul_df is not None else 0
-        ])
-        st.metric("Total Records", f"{total_records:,}")
-
-# College Student Analysis page
-elif page == "📈 College Student Analysis":
-    st.header("📈 College Student Analysis")
-    
-    college_df = load_college_data()
-    
-    if college_df is not None:
-        st.success(f"✅ Loaded {len(college_df)} records with {len(college_df.columns)} columns")
+    # BigQuery Status
+    client, project_id = get_bigquery_client()
+    if client is None:
+        st.error("❌ BigQuery connection failed. Please check your credentials.")
+        st.info("💡 Please check your BigQuery credentials and try again.")
+    else:
+        st.success(f"✅ Connected to BigQuery project: {project_id}")
         
-        # Data overview
-        col1, col2 = st.columns([2, 1])
+        # Dataset Overview
+        st.markdown("---")
+        st.subheader("📋 Dataset Overview")
         
-        with col1:
-            st.subheader("📋 Data Overview")
-            st.dataframe(college_df.head(10))
+        try:
+            # Get basic dataset info
+            dataset_ref = f"{project_id}.assignment_one_1"
+            dataset = client.get_dataset(dataset_ref)
+            
+            # Get table info
+            table_ref = f"{project_id}.assignment_one_1.retail_sales"
+            table = client.get_table(table_ref)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Dataset", "assignment_one_1")
+                st.metric("Table", "retail_sales")
+                st.metric("Location", table.location)
+            
+            with col2:
+                st.metric("Total Rows", f"{table.num_rows:,}")
+                st.metric("Table Size", f"{table.num_bytes / (1024*1024):.2f} MB")
+                st.metric("Created", table.created.strftime("%Y-%m-%d"))
+            
+            with col3:
+                st.metric("Project ID", project_id)
+                st.metric("Columns", len(table.schema))
+                st.metric("Last Modified", table.modified.strftime("%Y-%m-%d"))
+            
+        except Exception as e:
+            st.error(f"❌ Error fetching dataset info: {e}")
         
-        with col2:
-            st.subheader("📊 Data Info")
-            buffer = io.StringIO()
-            college_df.info(buf=buffer)
-            st.text(buffer.getvalue())
-        
-        # Basic statistics
-        st.subheader("📈 Statistical Summary")
-        st.dataframe(college_df.describe())
-        
-        # Interactive visualizations
-        st.subheader("📊 Interactive Visualizations")
-        
-        # Column selection for analysis
-        numeric_cols = college_df.select_dtypes(include=[np.number]).columns.tolist()
-        categorical_cols = college_df.select_dtypes(include=['object']).columns.tolist()
+        # Analysis Objectives
+        st.markdown("---")
+        st.subheader("🎯 Analysis Objectives")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            if numeric_cols:
-                selected_numeric = st.selectbox("Select numeric column for histogram:", numeric_cols)
-                fig = px.histogram(college_df, x=selected_numeric, title=f"Distribution of {selected_numeric}")
-                st.plotly_chart(fig, use_container_width=True)
+            st.markdown("""
+            **📊 Data Exploration:**
+            - Understand dataset structure and schema
+            - Identify data quality issues
+            - Explore key business metrics
+            
+            **🔍 Business Analysis:**
+            - Sales performance by category
+            - Store performance analysis
+            - Customer behavior insights
+            - Temporal trends and seasonality
+            """)
         
         with col2:
-            if categorical_cols:
-                selected_categorical = st.selectbox("Select categorical column for bar chart:", categorical_cols)
-                value_counts = college_df[selected_categorical].value_counts().head(10)
-                fig = px.bar(x=value_counts.index, y=value_counts.values, 
-                           title=f"Top 10 values in {selected_categorical}")
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Correlation matrix for numeric columns
-        if len(numeric_cols) > 1:
-            st.subheader("🔗 Correlation Matrix")
-            correlation_matrix = college_df[numeric_cols].corr()
-            fig = px.imshow(correlation_matrix, 
-                          title="Correlation Matrix",
-                          color_continuous_scale='RdBu',
-                          aspect="auto")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Scatter plot
-        if len(numeric_cols) >= 2:
-            st.subheader("📈 Scatter Plot")
-            col1, col2 = st.columns(2)
+            st.markdown("""
+            **📈 Advanced Analytics:**
+            - Revenue optimization opportunities
+            - Customer segmentation
+            - Product performance analysis
+            - Payment method insights
             
-            with col1:
-                x_col = st.selectbox("Select X-axis:", numeric_cols, index=0)
-            with col2:
-                y_col = st.selectbox("Select Y-axis:", numeric_cols, index=1)
-            
-            fig = px.scatter(college_df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
-            st.plotly_chart(fig, use_container_width=True)
-    
-    else:
-        st.error("❌ Could not load college student data")
+            **💡 Actionable Insights:**
+            - Data-driven recommendations
+            - Performance improvement areas
+            - Business growth opportunities
+            """)
 
-# Retail Sales Analysis page
-elif page == "🛍️ Retail Sales Analysis":
-    st.header("🛍️ Retail Sales Analysis")
+# Dataset Analysis page
+elif page == "📊 Dataset Analysis":
+    st.header("📊 Comprehensive Dataset Analysis")
     
-    retail_df = load_retail_data()
+    client, project_id = get_bigquery_client()
+    if client is None:
+        st.error("❌ BigQuery connection failed.")
+        st.stop()
     
-    if retail_df is not None:
-        st.success(f"✅ Loaded {len(retail_df)} records with {len(retail_df.columns)} columns")
+    st.success(f"✅ Connected to BigQuery project: {project_id}")
+    
+    # Table Schema Analysis
+    st.markdown("---")
+    st.subheader("🏗️ Table Schema Analysis")
+    
+    try:
+        table_ref = f"{project_id}.assignment_one_1.retail_sales"
+        table = client.get_table(table_ref)
         
-        # Data overview
-        col1, col2 = st.columns([2, 1])
+        # Display schema
+        schema_df = pd.DataFrame([
+            {
+                'Column': field.name,
+                'Type': field.field_type,
+                'Mode': field.mode,
+                'Description': field.description or 'No description'
+            }
+            for field in table.schema
+        ])
+        
+        st.write("**Table Schema:**")
+        st.dataframe(schema_df, use_container_width=True)
+        
+        # Data types summary
+        st.markdown("---")
+        st.subheader("📋 Data Types Summary")
+        
+        type_counts = schema_df['Type'].value_counts()
+        fig = px.pie(values=type_counts.values, names=type_counts.index, title="Data Types Distribution")
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"❌ Error analyzing schema: {e}")
+    
+    # Data Quality Analysis
+    st.markdown("---")
+    st.subheader("🔍 Data Quality Analysis")
+    
+    try:
+        # Check for null values
+        null_query = f"""
+        SELECT 
+            column_name,
+            COUNT(*) as total_rows,
+            COUNTIF(value IS NULL) as null_count,
+            ROUND(COUNTIF(value IS NULL) * 100.0 / COUNT(*), 2) as null_percentage
+        FROM `{project_id}.assignment_one_1.retail_sales`,
+        UNNEST([
+            STRUCT('transaction_date' as column_name, CAST(transaction_date AS STRING) as value),
+            STRUCT('product_name' as column_name, product_name as value),
+            STRUCT('store_name' as column_name, store_name as value),
+            STRUCT('customer_id' as column_name, CAST(customer_id AS STRING) as value),
+            STRUCT('quantity' as column_name, CAST(quantity AS STRING) as value),
+            STRUCT('total_amount' as column_name, CAST(total_amount AS STRING) as value),
+            STRUCT('payment_method' as column_name, payment_method as value)
+        ])
+        GROUP BY column_name
+        ORDER BY null_percentage DESC
+        """
+        
+        null_df = client.query(null_query).to_dataframe()
+        
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("📋 Data Overview")
-            st.dataframe(retail_df.head(10))
+            st.write("**Data Completeness Analysis:**")
+            st.dataframe(null_df, use_container_width=True)
         
         with col2:
-            st.subheader("📊 Data Info")
-            buffer = io.StringIO()
-            retail_df.info(buf=buffer)
-            st.text(buffer.getvalue())
-        
-        # Sales analysis
-        st.subheader("💰 Sales Analysis")
-        
-        # Convert date columns if they exist
-        date_columns = [col for col in retail_df.columns if 'date' in col.lower() or 'time' in col.lower()]
-        
-        if date_columns:
-            selected_date_col = st.selectbox("Select date column:", date_columns)
-            try:
-                retail_df[selected_date_col] = pd.to_datetime(retail_df[selected_date_col])
-                retail_df['Year'] = retail_df[selected_date_col].dt.year
-                retail_df['Month'] = retail_df[selected_date_col].dt.month
-                retail_df['Day'] = retail_df[selected_date_col].dt.day
-                
-                # Time series analysis
-                st.subheader("📅 Time Series Analysis")
-                
-                # Sales over time
-                if 'sales' in retail_df.columns.str.lower() or 'amount' in retail_df.columns.str.lower():
-                    sales_col = [col for col in retail_df.columns if 'sales' in col.lower() or 'amount' in col.lower()][0]
-                    
-                    monthly_sales = retail_df.groupby(['Year', 'Month'])[sales_col].sum().reset_index()
-                    monthly_sales['Date'] = pd.to_datetime(monthly_sales[['Year', 'Month']].assign(day=1))
-                    
-                    fig = px.line(monthly_sales, x='Date', y=sales_col, title="Monthly Sales Trend")
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Yearly comparison
-                yearly_sales = retail_df.groupby('Year')[sales_col].sum().reset_index()
-                fig = px.bar(yearly_sales, x='Year', y=sales_col, title="Yearly Sales Comparison")
-                st.plotly_chart(fig, use_container_width=True)
-                
-            except Exception as e:
-                st.warning(f"Could not process date column: {e}")
-        
-        # Product analysis
-        product_cols = [col for col in retail_df.columns if 'product' in col.lower() or 'item' in col.lower()]
-        if product_cols:
-            st.subheader("📦 Product Analysis")
-            selected_product_col = st.selectbox("Select product column:", product_cols)
-            
-            product_sales = retail_df.groupby(selected_product_col).size().sort_values(ascending=False).head(10)
-            fig = px.bar(x=product_sales.index, y=product_sales.values, title="Top 10 Products by Sales Count")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Statistical summary
-        st.subheader("📊 Statistical Summary")
-        st.dataframe(retail_df.describe())
-    
-    else:
-        st.error("❌ Could not load retail sales data")
-
-# Istanbul Sales Analysis page
-elif page == "🏙️ Istanbul Sales Analysis":
-    st.header("🏙️ Istanbul Sales Analysis")
-    
-    istanbul_df = load_istanbul_data()
-    
-    if istanbul_df is not None:
-        st.success(f"✅ Loaded {len(istanbul_df)} records with {len(istanbul_df.columns)} columns")
-        
-        # Data cleaning and preprocessing
-        st.subheader("🔧 Data Preprocessing")
-        
-        # Clean the data
-        df_clean = istanbul_df.copy()
-        df_clean = df_clean.dropna()
-        
-        # Convert date column if it exists
-        date_columns = [col for col in df_clean.columns if 'date' in col.lower()]
-        if date_columns:
-            try:
-                df_clean['invoice_date'] = pd.to_datetime(df_clean[date_columns[0]])
-                df_clean['month'] = df_clean['invoice_date'].dt.month
-                df_clean['year'] = df_clean['invoice_date'].dt.year
-                df_clean['day_of_week'] = df_clean['invoice_date'].dt.day_name()
-                df_clean['quarter'] = df_clean['invoice_date'].dt.quarter
-                st.success("✅ Date columns processed successfully")
-            except Exception as e:
-                st.warning(f"Could not process date column: {e}")
-        
-        # Calculate total amount if quantity and price exist
-        quantity_cols = [col for col in df_clean.columns if 'quantity' in col.lower()]
-        price_cols = [col for col in df_clean.columns if 'price' in col.lower()]
-        
-        if quantity_cols and price_cols:
-            df_clean['total_amount'] = df_clean[quantity_cols[0]] * df_clean[price_cols[0]]
-            st.success("✅ Total amount calculated")
-        
-        # Data overview
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.subheader("📋 Data Overview")
-            st.dataframe(df_clean.head(10))
-        
-        with col2:
-            st.subheader("📊 Data Info")
-            buffer = io.StringIO()
-            df_clean.info(buf=buffer)
-            st.text(buffer.getvalue())
-        
-        # Key Metrics Dashboard
-        st.subheader("📊 Key Performance Metrics")
-        
-        if 'total_amount' in df_clean.columns:
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                total_revenue = df_clean['total_amount'].sum()
-                st.metric("Total Revenue", f"${total_revenue:,.2f}")
-            
-            with col2:
-                avg_transaction = df_clean['total_amount'].mean()
-                st.metric("Avg Transaction", f"${avg_transaction:.2f}")
-            
-            with col3:
-                total_transactions = len(df_clean)
-                st.metric("Total Transactions", f"{total_transactions:,}")
-            
-            with col4:
-                unique_customers = df_clean['customer_id'].nunique() if 'customer_id' in df_clean.columns else "N/A"
-                st.metric("Unique Customers", f"{unique_customers:,}" if isinstance(unique_customers, int) else unique_customers)
-        
-        # Category Analysis
-        if 'category' in df_clean.columns:
-            st.subheader("📦 Category Performance Analysis")
-            
-            category_sales = df_clean.groupby('category')['total_amount'].sum().sort_values(ascending=False)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Top categories by revenue
-                fig = px.bar(
-                    x=category_sales.head(10).values,
-                    y=category_sales.head(10).index,
-                    orientation='h',
-                    title="Top 10 Categories by Revenue",
-                    labels={'x': 'Total Revenue ($)', 'y': 'Category'}
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                # Category statistics
-                category_stats = df_clean.groupby('category').agg({
-                    'total_amount': ['sum', 'mean', 'count'],
-                    'quantity': ['sum', 'mean'] if 'quantity' in df_clean.columns else 'count'
-                }).round(2)
-                
-                # Flatten column names
-                category_stats.columns = ['_'.join(col).strip() for col in category_stats.columns]
-                st.dataframe(category_stats.head(10))
-        
-        # Shopping Mall Analysis
-        if 'shopping_mall' in df_clean.columns:
-            st.subheader("🏬 Shopping Mall Performance")
-            
-            mall_sales = df_clean.groupby('shopping_mall')['total_amount'].sum().sort_values(ascending=False)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig = px.bar(
-                    x=mall_sales.values,
-                    y=mall_sales.index,
-                    orientation='h',
-                    title="Revenue by Shopping Mall",
-                    labels={'x': 'Total Revenue ($)', 'y': 'Shopping Mall'}
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                mall_stats = df_clean.groupby('shopping_mall').agg({
-                    'total_amount': ['sum', 'mean', 'count'],
-                    'customer_id': 'nunique' if 'customer_id' in df_clean.columns else 'count'
-                }).round(2)
-                
-                mall_stats.columns = ['_'.join(col).strip() for col in mall_stats.columns]
-                st.dataframe(mall_stats)
-        
-        # Payment Method Analysis
-        if 'payment_method' in df_clean.columns:
-            st.subheader("💳 Payment Method Analysis")
-            
-            payment_analysis = df_clean.groupby('payment_method').agg({
-                'total_amount': ['sum', 'mean', 'count'],
-                'quantity': ['sum', 'mean'] if 'quantity' in df_clean.columns else 'count'
-            }).round(2)
-            
-            payment_analysis.columns = ['_'.join(col).strip() for col in payment_analysis.columns]
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Payment method distribution
-                payment_counts = df_clean['payment_method'].value_counts()
-                fig = px.pie(
-                    values=payment_counts.values,
-                    names=payment_counts.index,
-                    title="Payment Method Distribution"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                st.dataframe(payment_analysis)
-        
-        # Temporal Analysis
-        if 'month' in df_clean.columns and 'year' in df_clean.columns:
-            st.subheader("📅 Temporal Patterns Analysis")
-            
-            # Monthly trends
-            monthly_sales = df_clean.groupby(['year', 'month'])['total_amount'].sum().reset_index()
-            monthly_sales['date'] = pd.to_datetime(monthly_sales[['year', 'month']].assign(day=1))
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig = px.line(
-                    monthly_sales,
-                    x='date',
-                    y='total_amount',
-                    title="Monthly Sales Trend",
-                    labels={'total_amount': 'Total Revenue ($)', 'date': 'Month'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                # Day of week analysis
-                if 'day_of_week' in df_clean.columns:
-                    dow_sales = df_clean.groupby('day_of_week')['total_amount'].sum()
-                    dow_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                    dow_sales = dow_sales.reindex(dow_order)
-                    
-                    fig = px.bar(
-                        x=dow_sales.index,
-                        y=dow_sales.values,
-                        title="Sales by Day of Week",
-                        labels={'x': 'Day of Week', 'y': 'Total Revenue ($)'}
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-        
-        # Customer Demographics
-        if 'age' in df_clean.columns:
-            st.subheader("👥 Customer Demographics")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Age distribution
-                fig = px.histogram(
-                    df_clean,
-                    x='age',
-                    nbins=20,
-                    title="Customer Age Distribution",
-                    labels={'age': 'Age', 'count': 'Count'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                # Age group analysis
-                df_clean['age_group'] = pd.cut(
-                    df_clean['age'],
-                    bins=[0, 25, 35, 45, 55, 100],
-                    labels=['18-25', '26-35', '36-45', '46-55', '55+']
-                )
-                
-                age_group_sales = df_clean.groupby('age_group')['total_amount'].sum()
-                fig = px.bar(
-                    x=age_group_sales.index,
-                    y=age_group_sales.values,
-                    title="Revenue by Age Group",
-                    labels={'x': 'Age Group', 'y': 'Total Revenue ($)'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Gender Analysis
-        if 'gender' in df_clean.columns:
-            st.subheader("👫 Gender-based Analysis")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Gender distribution
-                gender_counts = df_clean['gender'].value_counts()
-                fig = px.pie(
-                    values=gender_counts.values,
-                    names=gender_counts.index,
-                    title="Gender Distribution"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                # Gender vs transaction value
-                gender_avg = df_clean.groupby('gender')['total_amount'].mean()
-                fig = px.bar(
-                    x=gender_avg.index,
-                    y=gender_avg.values,
-                    title="Average Transaction Value by Gender",
-                    labels={'x': 'Gender', 'y': 'Average Transaction Value ($)'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Correlation Analysis
-        st.subheader("🔗 Correlation Analysis")
-        
-        numeric_columns = df_clean.select_dtypes(include=[np.number]).columns.tolist()
-        if len(numeric_columns) > 1:
-            correlation_matrix = df_clean[numeric_columns].corr()
-            
-            fig = px.imshow(
-                correlation_matrix,
-                title="Correlation Matrix",
-                color_continuous_scale='RdBu',
-                aspect="auto",
-                labels=dict(x="Variables", y="Variables", color="Correlation")
+            # Create completeness chart
+            fig = px.bar(
+                null_df, 
+                x='column_name', 
+                y='null_percentage',
+                title="Data Completeness by Column (%)",
+                color='null_percentage',
+                color_continuous_scale='RdYlGn_r'
             )
+            fig.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig, use_container_width=True)
         
-        # Price vs Quantity Analysis
-        if 'price' in df_clean.columns and 'quantity' in df_clean.columns:
-            st.subheader("💰 Price vs Quantity Analysis")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Scatter plot
-                fig = px.scatter(
-                    df_clean,
-                    x='price',
-                    y='quantity',
-                    title="Price vs Quantity Relationship",
-                    labels={'price': 'Price ($)', 'quantity': 'Quantity'},
-                    opacity=0.6
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                # Price distribution by category
-                if 'category' in df_clean.columns:
-                    category_price = df_clean.groupby('category')['price'].mean().sort_values(ascending=False)
-                    fig = px.bar(
-                        x=category_price.values,
-                        y=category_price.index,
-                        orientation='h',
-                        title="Average Price by Category",
-                        labels={'x': 'Average Price ($)', 'y': 'Category'}
-                    )
-                    fig.update_layout(height=400)
-                    st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ Error analyzing data quality: {e}")
+    
+    # Sample Data Display
+    st.markdown("---")
+    st.subheader("📋 Sample Data")
+    
+    try:
+        sample_query = f"SELECT * FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 20"
+        sample_df = client.query(sample_query).to_dataframe()
         
-        # Statistical Summary
-        st.subheader("📊 Comprehensive Statistical Summary")
-        st.dataframe(df_clean.describe())
+        st.write("**First 20 Records:**")
+        st.dataframe(sample_df, use_container_width=True)
         
-        # Download processed data
-        st.subheader("💾 Download Processed Data")
-        
-        csv = df_clean.to_csv(index=False)
+        # Download sample data
+        csv = sample_df.to_csv(index=False)
         st.download_button(
-            label="📥 Download Processed Data as CSV",
+            label="📥 Download Sample Data as CSV",
             data=csv,
-            file_name="istanbul_sales_processed.csv",
+            file_name="retail_sales_sample.csv",
             mime="text/csv"
         )
         
-        # Export visualizations
-        st.subheader("📊 Export Visualizations")
-        
-        # Create a comprehensive visualization
-        if 'total_amount' in df_clean.columns and 'category' in df_clean.columns:
-            # Create subplot with multiple charts
-            fig = make_subplots(
-                rows=2, cols=2,
-                subplot_titles=('Top Categories by Revenue', 'Revenue by Shopping Mall', 
-                              'Monthly Sales Trend', 'Payment Method Distribution'),
-                specs=[[{"type": "bar"}, {"type": "bar"}],
-                       [{"type": "scatter"}, {"type": "pie"}]]
-            )
-            
-            # Top categories
-            top_categories = df_clean.groupby('category')['total_amount'].sum().sort_values(ascending=False).head(8)
-            fig.add_trace(
-                go.Bar(x=top_categories.values, y=top_categories.index, orientation='h', name="Categories"),
-                row=1, col=1
-            )
-            
-            # Top malls
-            if 'shopping_mall' in df_clean.columns:
-                top_malls = df_clean.groupby('shopping_mall')['total_amount'].sum().sort_values(ascending=False).head(8)
-                fig.add_trace(
-                    go.Bar(x=top_malls.values, y=top_malls.index, orientation='h', name="Malls"),
-                    row=1, col=2
-                )
-            
-            # Monthly trend
-            if 'month' in df_clean.columns and 'year' in df_clean.columns:
-                monthly_trend = df_clean.groupby(['year', 'month'])['total_amount'].sum().reset_index()
-                monthly_trend['date'] = pd.to_datetime(monthly_trend[['year', 'month']].assign(day=1))
-                fig.add_trace(
-                    go.Scatter(x=monthly_trend['date'], y=monthly_trend['total_amount'], mode='lines+markers', name="Monthly Trend"),
-                    row=2, col=1
-                )
-            
-            # Payment methods
-            if 'payment_method' in df_clean.columns:
-                payment_counts = df_clean['payment_method'].value_counts()
-                fig.add_trace(
-                    go.Pie(labels=payment_counts.index, values=payment_counts.values, name="Payment Methods"),
-                    row=2, col=2
-                )
-            
-            fig.update_layout(height=800, title_text="Istanbul Sales Analysis Dashboard")
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Download visualization
-            img_bytes = fig.to_image(format="png")
-            st.download_button(
-                label="📥 Download Dashboard as PNG",
-                data=img_bytes,
-                file_name="istanbul_sales_dashboard.png",
-                mime="image/png"
-            )
-    
-    else:
-        st.error("❌ Could not load Istanbul sales data")
+    except Exception as e:
+        st.error(f"❌ Error fetching sample data: {e}")
 
-# Data Explorer page
-elif page == "📊 Data Explorer":
-    st.header("📊 Interactive Data Explorer")
+# SQL Queries page
+elif page == "🔍 SQL Queries":
+    st.header("🔍 SQL Query Execution")
     
-    # File uploader
-    uploaded_file = st.file_uploader("Upload a CSV file to explore:", type=['csv'])
+    client, project_id = get_bigquery_client()
+    if client is None:
+        st.error("❌ BigQuery connection failed.")
+        st.stop()
     
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            st.success(f"✅ Successfully loaded {len(df)} rows and {len(df.columns)} columns")
-            
-            # Data overview
-            st.subheader("📋 Data Overview")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("First 10 rows:")
-                st.dataframe(df.head(10))
-            
-            with col2:
-                st.write("Data types:")
-                st.dataframe(df.dtypes.to_frame('Data Type'))
-            
-            # Column analysis
-            st.subheader("📊 Column Analysis")
-            selected_column = st.selectbox("Select a column to analyze:", df.columns)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write(f"**Column: {selected_column}**")
-                st.write(f"Data type: {df[selected_column].dtype}")
-                st.write(f"Missing values: {df[selected_column].isnull().sum()}")
-                st.write(f"Unique values: {df[selected_column].nunique()}")
-            
-            with col2:
-                if df[selected_column].dtype in ['int64', 'float64']:
-                    st.write("**Numeric Statistics:**")
-                    st.write(df[selected_column].describe())
-                else:
-                    st.write("**Categorical Statistics:**")
-                    st.write(df[selected_column].value_counts().head(10))
-            
-            # Visualization
-            st.subheader("📈 Visualization")
-            
-            if df[selected_column].dtype in ['int64', 'float64']:
-                fig = px.histogram(df, x=selected_column, title=f"Distribution of {selected_column}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                value_counts = df[selected_column].value_counts().head(10)
-                fig = px.bar(x=value_counts.index, y=value_counts.values, title=f"Top 10 values in {selected_column}")
-                st.plotly_chart(fig, use_container_width=True)
+    st.success(f"✅ Connected to BigQuery project: {project_id}")
+    
+    # Pre-built Analysis Queries
+    st.markdown("---")
+    st.subheader("📋 Pre-built Analysis Queries")
+    
+    query_templates = {
+        "Basic Overview": f"""
+        SELECT 
+            COUNT(*) as total_transactions,
+            COUNT(DISTINCT customer_id) as unique_customers,
+            COUNT(DISTINCT store_name) as unique_stores,
+            COUNT(DISTINCT product_name) as unique_products,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            ROUND(SUM(total_amount), 2) as total_revenue
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        """,
         
-        except Exception as e:
-            st.error(f"Error loading file: {e}")
+        "Category Performance": f"""
+        SELECT 
+            product_category,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            ROUND(SUM(quantity), 0) as total_quantity_sold
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE product_category IS NOT NULL
+        GROUP BY product_category
+        ORDER BY total_revenue DESC
+        """,
+        
+        "Store Performance": f"""
+        SELECT 
+            store_name,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            COUNT(DISTINCT customer_id) as unique_customers
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE store_name IS NOT NULL
+        GROUP BY store_name
+        ORDER BY total_revenue DESC
+        LIMIT 15
+        """,
+        
+        "Monthly Trends": f"""
+        SELECT 
+            EXTRACT(YEAR FROM transaction_date) as year,
+            EXTRACT(MONTH FROM transaction_date) as month,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount), 2) as monthly_revenue,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE transaction_date IS NOT NULL
+        GROUP BY year, month
+        ORDER BY year, month
+        """,
+        
+        "Customer Analysis": f"""
+        SELECT 
+            customer_id,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount), 2) as total_spent,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            COUNT(DISTINCT store_name) as stores_visited,
+            MIN(transaction_date) as first_purchase,
+            MAX(transaction_date) as last_purchase
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE customer_id IS NOT NULL
+        GROUP BY customer_id
+        ORDER BY total_spent DESC
+        LIMIT 20
+        """,
+        
+        "Payment Method Analysis": f"""
+        SELECT 
+            payment_method,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            COUNT(DISTINCT customer_id) as unique_customers
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE payment_method IS NOT NULL
+        GROUP BY payment_method
+        ORDER BY total_revenue DESC
+        """
+    }
     
-    else:
-        st.info("👆 Upload a CSV file to start exploring!")
+    selected_template = st.selectbox("Choose a pre-built analysis:", list(query_templates.keys()))
+    query = st.text_area("SQL Query:", value=query_templates[selected_template], height=200)
+    
+    if st.button("🚀 Execute Query", type="primary"):
+        if query.strip():
+            with st.spinner("Executing query..."):
+                try:
+                    # Execute query
+                    results_df = client.query(query).to_dataframe()
+                    
+                    st.success(f"✅ Query executed successfully! Returned {len(results_df)} rows")
+                    
+                    # Display results
+                    st.write("**Query Results:**")
+                    st.dataframe(results_df, use_container_width=True)
+                    
+                    # Download results
+                    if len(results_df) > 0:
+                        csv = results_df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Results as CSV",
+                            data=csv,
+                            file_name=f"{selected_template.lower().replace(' ', '_')}_results.csv",
+                            mime="text/csv"
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Query execution failed: {e}")
+                    st.info("💡 Check your SQL syntax and table references")
+        else:
+            st.warning("⚠️ Please enter a SQL query")
+    
+    # Custom Query Section
+    st.markdown("---")
+    st.subheader("✍️ Custom SQL Query")
+    
+    custom_query = st.text_area("Enter your custom SQL query:", height=150, 
+                               placeholder=f"SELECT * FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 10")
+    
+    if st.button("🔍 Run Custom Query"):
+        if custom_query.strip():
+            with st.spinner("Executing custom query..."):
+                try:
+                    # Execute custom query
+                    custom_results = client.query(custom_query).to_dataframe()
+                    
+                    st.success(f"✅ Custom query executed successfully! Returned {len(custom_results)} rows")
+                    
+                    # Display results
+                    st.write("**Custom Query Results:**")
+                    st.dataframe(custom_results, use_container_width=True)
+                    
+                    # Download results
+                    if len(custom_results) > 0:
+                        csv = custom_results.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Custom Results as CSV",
+                            data=csv,
+                            file_name="custom_query_results.csv",
+                            mime="text/csv"
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Custom query execution failed: {e}")
+                    st.info("💡 Check your SQL syntax and table references")
+        else:
+            st.warning("⚠️ Please enter a custom SQL query")
+
+# Visualizations page
+elif page == "📈 Visualizations":
+    st.header("📈 Interactive Data Visualizations")
+    
+    client, project_id = get_bigquery_client()
+    if client is None:
+        st.error("❌ BigQuery connection failed.")
+        st.stop()
+    
+    st.success(f"✅ Connected to BigQuery project: {project_id}")
+    
+    # Visualization Options
+    st.markdown("---")
+    st.subheader("📊 Choose Visualization Type")
+    
+    viz_options = [
+        "Revenue by Category",
+        "Store Performance",
+        "Monthly Trends",
+        "Customer Spending",
+        "Payment Methods",
+        "Product Performance"
+    ]
+    
+    selected_viz = st.selectbox("Select visualization:", viz_options)
+    
+    if st.button("🎨 Generate Visualization", type="primary"):
+        with st.spinner("Generating visualization..."):
+            try:
+                if selected_viz == "Revenue by Category":
+                    # Category revenue analysis
+                    query = f"""
+                    SELECT 
+                        product_category,
+                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        COUNT(*) as transaction_count
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE product_category IS NOT NULL
+                    GROUP BY product_category
+                    ORDER BY total_revenue DESC
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create bar chart
+                    fig = px.bar(
+                        df, 
+                        x='product_category', 
+                        y='total_revenue',
+                        title="Revenue by Product Category",
+                        color='transaction_count',
+                        color_continuous_scale='Viridis'
+                    )
+                    fig.update_layout(xaxis_tickangle=-45)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Category Revenue Data:**")
+                    st.dataframe(df, use_container_width=True)
+                
+                elif selected_viz == "Store Performance":
+                    # Store performance analysis
+                    query = f"""
+                    SELECT 
+                        store_name,
+                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        COUNT(*) as transaction_count,
+                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE store_name IS NOT NULL
+                    GROUP BY store_name
+                    ORDER BY total_revenue DESC
+                    LIMIT 15
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create scatter plot
+                    fig = px.scatter(
+                        df,
+                        x='transaction_count',
+                        y='total_revenue',
+                        size='avg_transaction_value',
+                        color='total_revenue',
+                        hover_data=['store_name'],
+                        title="Store Performance: Revenue vs Transactions"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Store Performance Data:**")
+                    st.dataframe(df, use_container_width=True)
+                
+                elif selected_viz == "Monthly Trends":
+                    # Monthly trends analysis
+                    query = f"""
+                    SELECT 
+                        EXTRACT(YEAR FROM transaction_date) as year,
+                        EXTRACT(MONTH FROM transaction_date) as month,
+                        ROUND(SUM(total_amount), 2) as monthly_revenue,
+                        COUNT(*) as transaction_count
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE transaction_date IS NOT NULL
+                    GROUP BY year, month
+                    ORDER BY year, month
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create line chart
+                    df['date'] = pd.to_datetime(df[['year', 'month']].assign(day=1))
+                    fig = px.line(
+                        df,
+                        x='date',
+                        y='monthly_revenue',
+                        title="Monthly Revenue Trends",
+                        markers=True
+                    )
+                    fig.update_layout(xaxis_title="Month", yaxis_title="Revenue ($)")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Monthly Trends Data:**")
+                    st.dataframe(df, use_container_width=True)
+                
+                elif selected_viz == "Customer Spending":
+                    # Customer spending analysis
+                    query = f"""
+                    SELECT 
+                        customer_id,
+                        ROUND(SUM(total_amount), 2) as total_spent,
+                        COUNT(*) as transaction_count,
+                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE customer_id IS NOT NULL
+                    GROUP BY customer_id
+                    ORDER BY total_spent DESC
+                    LIMIT 50
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create histogram
+                    fig = px.histogram(
+                        df,
+                        x='total_spent',
+                        nbins=20,
+                        title="Customer Spending Distribution",
+                        labels={'total_spent': 'Total Amount Spent ($)'}
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Customer Spending Data (Top 50):**")
+                    st.dataframe(df, use_container_width=True)
+                
+                elif selected_viz == "Payment Methods":
+                    # Payment method analysis
+                    query = f"""
+                    SELECT 
+                        payment_method,
+                        COUNT(*) as transaction_count,
+                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE payment_method IS NOT NULL
+                    GROUP BY payment_method
+                    ORDER BY total_revenue DESC
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create pie chart
+                    fig = px.pie(
+                        df,
+                        values='total_revenue',
+                        names='payment_method',
+                        title="Revenue Distribution by Payment Method"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Payment Method Data:**")
+                    st.dataframe(df, use_container_width=True)
+                
+                elif selected_viz == "Product Performance":
+                    # Product performance analysis
+                    query = f"""
+                    SELECT 
+                        product_name,
+                        COUNT(*) as times_purchased,
+                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        ROUND(SUM(quantity), 0) as total_quantity_sold
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE product_name IS NOT NULL
+                    GROUP BY product_name
+                    ORDER BY total_revenue DESC
+                    LIMIT 20
+                    """
+                    
+                    df = client.query(query).to_dataframe()
+                    
+                    # Create horizontal bar chart
+                    fig = px.bar(
+                        df,
+                        y='product_name',
+                        x='total_revenue',
+                        orientation='h',
+                        title="Top 20 Products by Revenue",
+                        color='times_purchased',
+                        color_continuous_scale='Plasma'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display data
+                    st.write("**Product Performance Data (Top 20):**")
+                    st.dataframe(df, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"❌ Error generating visualization: {e}")
+                st.info("💡 This might be due to data type issues or missing columns")
+
+# Business Insights page
+elif page == "💡 Business Insights":
+    st.header("💡 Business Intelligence Insights")
+    
+    client, project_id = get_bigquery_client()
+    if client is None:
+        st.error("❌ BigQuery connection failed.")
+        st.stop()
+    
+    st.success(f"✅ Connected to BigQuery project: {project_id}")
+    
+    # Key Performance Indicators
+    st.markdown("---")
+    st.subheader("🎯 Key Performance Indicators (KPIs)")
+    
+    try:
+        # Calculate KPIs
+        kpi_query = f"""
+        SELECT 
+            COUNT(*) as total_transactions,
+            COUNT(DISTINCT customer_id) as unique_customers,
+            COUNT(DISTINCT store_name) as unique_stores,
+            COUNT(DISTINCT product_name) as unique_products,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            ROUND(SUM(quantity), 0) as total_items_sold,
+            ROUND(AVG(quantity), 2) as avg_items_per_transaction
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        """
+        
+        kpi_df = client.query(kpi_query).to_dataframe()
+        
+        # Display KPIs in columns
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Transactions", f"{kpi_df.iloc[0]['total_transactions']:,}")
+            st.metric("Total Revenue", f"${kpi_df.iloc[0]['total_revenue']:,.2f}")
+        
+        with col2:
+            st.metric("Unique Customers", f"{kpi_df.iloc[0]['unique_customers']:,}")
+            st.metric("Avg Transaction Value", f"${kpi_df.iloc[0]['avg_transaction_value']:.2f}")
+        
+        with col3:
+            st.metric("Unique Stores", f"{kpi_df.iloc[0]['unique_stores']:,}")
+            st.metric("Total Items Sold", f"{kpi_df.iloc[0]['total_items_sold']:,}")
+        
+        with col4:
+            st.metric("Unique Products", f"{kpi_df.iloc[0]['unique_products']:,}")
+            st.metric("Avg Items/Transaction", f"{kpi_df.iloc[0]['avg_items_per_transaction']:.2f}")
+        
+    except Exception as e:
+        st.error(f"❌ Error calculating KPIs: {e}")
+    
+    # Business Insights Analysis
+    st.markdown("---")
+    st.subheader("💡 Business Insights Analysis")
+    
+    try:
+        # Revenue by category insights
+        category_query = f"""
+        SELECT 
+            product_category,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            COUNT(*) as transaction_count,
+            ROUND(SUM(total_amount) * 100.0 / SUM(SUM(total_amount)) OVER(), 2) as revenue_percentage
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE product_category IS NOT NULL
+        GROUP BY product_category
+        ORDER BY total_revenue DESC
+        """
+        
+        category_df = client.query(category_query).to_dataframe()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Revenue by Category:**")
+            st.dataframe(category_df, use_container_width=True)
+        
+        with col2:
+            # Create pie chart
+            fig = px.pie(
+                category_df,
+                values='total_revenue',
+                names='product_category',
+                title="Revenue Distribution by Category"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Top performing stores
+        st.markdown("---")
+        st.subheader("🏪 Top Performing Stores")
+        
+        store_query = f"""
+        SELECT 
+            store_name,
+            ROUND(SUM(total_amount), 2) as total_revenue,
+            COUNT(*) as transaction_count,
+            ROUND(AVG(total_amount), 2) as avg_transaction_value,
+            COUNT(DISTINCT customer_id) as unique_customers
+        FROM `{project_id}.assignment_one_1.retail_sales`
+        WHERE store_name IS NOT NULL
+        GROUP BY store_name
+        ORDER BY total_revenue DESC
+        LIMIT 10
+        """
+        
+        store_df = client.query(store_query).to_dataframe()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Top 10 Stores by Revenue:**")
+            st.dataframe(store_df, use_container_width=True)
+        
+        with col2:
+            # Create bar chart
+            fig = px.bar(
+                store_df,
+                x='store_name',
+                y='total_revenue',
+                title="Top 10 Stores by Revenue",
+                color='transaction_count',
+                color_continuous_scale='Viridis'
+            )
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Customer insights
+        st.markdown("---")
+        st.subheader("👥 Customer Insights")
+        
+        customer_query = f"""
+        SELECT 
+            CASE 
+                WHEN total_spent >= 1000 THEN 'High Value'
+                WHEN total_spent >= 500 THEN 'Medium Value'
+                ELSE 'Low Value'
+            END as customer_segment,
+            COUNT(*) as customer_count,
+            ROUND(AVG(total_spent), 2) as avg_spent,
+            ROUND(SUM(total_spent), 2) as total_spent
+        FROM (
+            SELECT 
+                customer_id,
+                SUM(total_amount) as total_spent
+            FROM `{project_id}.assignment_one_1.retail_sales`
+            WHERE customer_id IS NOT NULL
+            GROUP BY customer_id
+        )
+        GROUP BY customer_segment
+        ORDER BY total_spent DESC
+        """
+        
+        customer_df = client.query(customer_query).to_dataframe()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Customer Segmentation by Spending:**")
+            st.dataframe(customer_df, use_container_width=True)
+        
+        with col2:
+            # Create pie chart
+            fig = px.pie(
+                customer_df,
+                values='customer_count',
+                names='customer_segment',
+                title="Customer Distribution by Value Segment"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"❌ Error generating business insights: {e}")
+    
+    # Recommendations
+    st.markdown("---")
+    st.subheader("💡 Business Recommendations")
+    
+    try:
+        # Generate recommendations based on data
+        st.markdown("""
+        **🎯 Based on the analysis, here are key business recommendations:**
+        
+        **📈 Revenue Optimization:**
+        - Focus on high-performing product categories
+        - Optimize store performance in top locations
+        - Develop customer loyalty programs for high-value customers
+        
+        **🏪 Store Performance:**
+        - Analyze successful store strategies
+        - Implement best practices across all locations
+        - Consider expansion in high-performing areas
+        
+        **👥 Customer Strategy:**
+        - Target high-value customer segments
+        - Develop retention strategies for medium-value customers
+        - Create engagement programs for low-value customers
+        
+        **📊 Data Quality:**
+        - Monitor data completeness regularly
+        - Implement data validation processes
+        - Ensure consistent data entry across stores
+        """)
+        
+    except Exception as e:
+        st.error(f"❌ Error generating recommendations: {e}")
 
 # About page
 elif page == "📋 About":
@@ -738,40 +898,38 @@ elif page == "📋 About":
     
     st.markdown("""
     ## 🎯 Purpose
-    This interactive data analysis dashboard provides comprehensive insights into various datasets including:
+    This dashboard provides comprehensive analysis of the retail sales dataset from BigQuery, 
+    offering business intelligence insights and data-driven recommendations.
     
-    - **College Student Analysis**: Academic performance and demographic analysis
-    - **Retail Sales Analysis**: Sales patterns and product performance
-    - **Istanbul Sales Analysis**: Regional business insights
+    ## 🔗 Data Source
+    - **Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+    - **Source:** Kaggle Retail Sales Dataset
+    - **Platform:** Google BigQuery
     
     ## 🛠️ Features
-    - **Interactive Visualizations**: Dynamic charts and graphs using Plotly
-    - **Data Exploration**: Comprehensive data analysis tools
-    - **Real-time Filtering**: Customizable data views
-    - **Statistical Analysis**: Descriptive statistics and correlations
-    - **File Upload**: Upload and analyze your own CSV files
+    - **Data Exploration:** Comprehensive dataset analysis and schema review
+    - **SQL Queries:** Pre-built and custom SQL query execution
+    - **Visualizations:** Interactive charts and graphs
+    - **Business Insights:** KPI analysis and business recommendations
+    - **Data Export:** Download results and insights
     
-    ## 📊 Technologies Used
-    - **Streamlit**: Web application framework
-    - **Pandas**: Data manipulation and analysis
-    - **Plotly**: Interactive visualizations
-    - **NumPy**: Numerical computing
-    - **Seaborn**: Statistical data visualization
+    ## 📊 Analysis Capabilities
+    - Revenue analysis by category and store
+    - Customer segmentation and behavior analysis
+    - Temporal trends and seasonality
+    - Payment method performance
+    - Product performance insights
     
-    ## 🚀 Getting Started
-    1. Navigate through the sidebar to explore different datasets
-    2. Use the interactive controls to customize your analysis
-    3. Upload your own CSV files in the Data Explorer section
-    4. Export visualizations and insights as needed
-    
-    ## 📈 Data Sources
-    - College Student Analysis: Academic performance dataset
-    - Retail Sales Dataset: Sales and product data
-    - Istanbul Sales Data: Regional business performance
+    ## 🚀 Technologies Used
+    - **Streamlit:** Web application framework
+    - **BigQuery:** Cloud data warehouse
+    - **Plotly:** Interactive visualizations
+    - **Pandas:** Data manipulation
+    - **Python:** Programming language
     
     ---
     
-    **Created with ❤️ using Streamlit**
+    **📊 Retail Sales Analysis Dashboard | Powered by BigQuery & Streamlit**
     """)
     
     # Footer
@@ -782,6 +940,7 @@ elif page == "📋 About":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
-    <p>📊 Data Analysis Dashboard | Built with Streamlit</p>
+    <p>📊 Retail Sales Analysis Dashboard | BigQuery Integration | Built with Streamlit</p>
+    <p><small>Comprehensive analysis of retail sales data with business intelligence insights</small></p>
 </div>
 """, unsafe_allow_html=True)
