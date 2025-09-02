@@ -237,13 +237,13 @@ elif page == "📊 Dataset Analysis":
             ROUND(COUNTIF(value IS NULL) * 100.0 / COUNT(*), 2) as null_percentage
         FROM `{project_id}.assignment_one_1.retail_sales`,
         UNNEST([
-            STRUCT('transaction_date' as column_name, CAST(transaction_date AS STRING) as value),
-            STRUCT('product_name' as column_name, product_name as value),
-            STRUCT('store_name' as column_name, store_name as value),
-            STRUCT('customer_id' as column_name, CAST(customer_id AS STRING) as value),
-            STRUCT('quantity' as column_name, CAST(quantity AS STRING) as value),
-            STRUCT('total_amount' as column_name, CAST(total_amount AS STRING) as value),
-            STRUCT('payment_method' as column_name, payment_method as value)
+            STRUCT('Date' as column_name, CAST(`Date` AS STRING) as value),
+            STRUCT('Product Category' as column_name, `Product Category` as value),
+            STRUCT('Customer ID' as column_name, CAST(`Customer ID` AS STRING) as value),
+            STRUCT('Quantity' as column_name, CAST(`Quantity` AS STRING) as value),
+            STRUCT('Total Amount' as column_name, CAST(`Total Amount` AS STRING) as value),
+            STRUCT('Gender' as column_name, `Gender` as value),
+            STRUCT('Age' as column_name, CAST(`Age` AS STRING) as value)
         ])
         GROUP BY column_name
         ORDER BY null_percentage DESC
@@ -315,80 +315,85 @@ elif page == "🔍 SQL Queries":
         "Basic Overview": f"""
         SELECT 
             COUNT(*) as total_transactions,
-            COUNT(DISTINCT customer_id) as unique_customers,
-            COUNT(DISTINCT store_name) as unique_stores,
-            COUNT(DISTINCT product_name) as unique_products,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            ROUND(SUM(total_amount), 2) as total_revenue
+            COUNT(DISTINCT `Customer ID`) as unique_customers,
+            COUNT(DISTINCT `Product Category`) as unique_categories,
+            COUNT(DISTINCT `Transaction ID`) as unique_transactions,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue
         FROM `{project_id}.assignment_one_1.retail_sales`
         """,
         
         "Category Performance": f"""
         SELECT 
-            product_category,
+            `Product Category`,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount), 2) as total_revenue,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            ROUND(SUM(quantity), 0) as total_quantity_sold
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE product_category IS NOT NULL
-        GROUP BY product_category
+        WHERE `Product Category` IS NOT NULL
+        GROUP BY `Product Category`
         ORDER BY total_revenue DESC
         """,
         
-        "Store Performance": f"""
+        "Customer Demographics": f"""
         SELECT 
-            store_name,
+            `Gender`,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount), 2) as total_revenue,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            COUNT(DISTINCT customer_id) as unique_customers
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            COUNT(DISTINCT `Customer ID`) as unique_customers
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE store_name IS NOT NULL
-        GROUP BY store_name
+        WHERE `Gender` IS NOT NULL
+        GROUP BY `Gender`
         ORDER BY total_revenue DESC
-        LIMIT 15
         """,
         
         "Monthly Trends": f"""
         SELECT 
-            EXTRACT(YEAR FROM transaction_date) as year,
-            EXTRACT(MONTH FROM transaction_date) as month,
+            EXTRACT(YEAR FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as year,
+            EXTRACT(MONTH FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as month,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount), 2) as monthly_revenue,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE transaction_date IS NOT NULL
+        WHERE `Date` IS NOT NULL
         GROUP BY year, month
         ORDER BY year, month
         """,
         
         "Customer Analysis": f"""
         SELECT 
-            customer_id,
+            `Customer ID`,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount), 2) as total_spent,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            COUNT(DISTINCT store_name) as stores_visited,
-            MIN(transaction_date) as first_purchase,
-            MAX(transaction_date) as last_purchase
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            COUNT(DISTINCT `Product Category`) as categories_purchased,
+            MIN(SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as first_purchase,
+            MAX(SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as last_purchase
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE customer_id IS NOT NULL
-        GROUP BY customer_id
+        WHERE `Customer ID` IS NOT NULL
+        GROUP BY `Customer ID`
         ORDER BY total_spent DESC
         LIMIT 20
         """,
         
-        "Payment Method Analysis": f"""
+        "Age Group Analysis": f"""
         SELECT 
-            payment_method,
+            CASE
+                WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
+                WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
+                WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
+                WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
+                WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
+                ELSE '55+'
+            END as age_group,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount), 2) as total_revenue,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            COUNT(DISTINCT customer_id) as unique_customers
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE payment_method IS NOT NULL
-        GROUP BY payment_method
+        WHERE `Age` IS NOT NULL
+        GROUP BY age_group
         ORDER BY total_revenue DESC
         """
     }
@@ -430,7 +435,7 @@ elif page == "🔍 SQL Queries":
     st.subheader("✍️ Custom SQL Query")
     
     custom_query = st.text_area("Enter your custom SQL query:", height=150, 
-                               placeholder=f"SELECT * FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 10")
+                               placeholder=f"SELECT `Transaction ID`, `Customer ID`, `Product Category`, `Total Amount` FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 10")
     
     if st.button("🔍 Run Custom Query"):
         if custom_query.strip():
@@ -478,10 +483,10 @@ elif page == "📈 Visualizations":
     
     viz_options = [
         "Revenue by Category",
-        "Store Performance",
+        "Customer Demographics",
         "Monthly Trends",
         "Customer Spending",
-        "Payment Methods",
+        "Age Group Analysis",
         "Product Performance"
     ]
     
@@ -494,12 +499,12 @@ elif page == "📈 Visualizations":
                     # Category revenue analysis
                     query = f"""
                     SELECT 
-                        product_category,
-                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        `Product Category`,
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
                         COUNT(*) as transaction_count
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE product_category IS NOT NULL
-                    GROUP BY product_category
+                    WHERE `Product Category` IS NOT NULL
+                    GROUP BY `Product Category`
                     ORDER BY total_revenue DESC
                     """
                     
@@ -508,7 +513,7 @@ elif page == "📈 Visualizations":
                     # Create bar chart
                     fig = px.bar(
                         df, 
-                        x='product_category', 
+                        x='Product Category', 
                         y='total_revenue',
                         title="Revenue by Product Category",
                         color='transaction_count',
@@ -521,49 +526,45 @@ elif page == "📈 Visualizations":
                     st.write("**Category Revenue Data:**")
                     st.dataframe(df, use_container_width=True)
                 
-                elif selected_viz == "Store Performance":
-                    # Store performance analysis
+                elif selected_viz == "Customer Demographics":
+                    # Customer demographics analysis
                     query = f"""
                     SELECT 
-                        store_name,
-                        ROUND(SUM(total_amount), 2) as total_revenue,
+                        `Gender`,
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
                         COUNT(*) as transaction_count,
-                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE store_name IS NOT NULL
-                    GROUP BY store_name
+                    WHERE `Gender` IS NOT NULL
+                    GROUP BY `Gender`
                     ORDER BY total_revenue DESC
-                    LIMIT 15
                     """
                     
                     df = client.query(query).to_dataframe()
                     
-                    # Create scatter plot
-                    fig = px.scatter(
+                    # Create pie chart
+                    fig = px.pie(
                         df,
-                        x='transaction_count',
-                        y='total_revenue',
-                        size='avg_transaction_value',
-                        color='total_revenue',
-                        hover_data=['store_name'],
-                        title="Store Performance: Revenue vs Transactions"
+                        values='total_revenue',
+                        names='Gender',
+                        title="Revenue Distribution by Gender"
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display data
-                    st.write("**Store Performance Data:**")
+                    st.write("**Customer Demographics Data:**")
                     st.dataframe(df, use_container_width=True)
                 
                 elif selected_viz == "Monthly Trends":
                     # Monthly trends analysis
                     query = f"""
                     SELECT 
-                        EXTRACT(YEAR FROM transaction_date) as year,
-                        EXTRACT(MONTH FROM transaction_date) as month,
-                        ROUND(SUM(total_amount), 2) as monthly_revenue,
+                        EXTRACT(YEAR FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as year,
+                        EXTRACT(MONTH FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as month,
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
                         COUNT(*) as transaction_count
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE transaction_date IS NOT NULL
+                    WHERE `Date` IS NOT NULL
                     GROUP BY year, month
                     ORDER BY year, month
                     """
@@ -585,18 +586,18 @@ elif page == "📈 Visualizations":
                     # Display data
                     st.write("**Monthly Trends Data:**")
                     st.dataframe(df, use_container_width=True)
-                
+                 
                 elif selected_viz == "Customer Spending":
                     # Customer spending analysis
                     query = f"""
                     SELECT 
-                        customer_id,
-                        ROUND(SUM(total_amount), 2) as total_spent,
+                        `Customer ID`,
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
                         COUNT(*) as transaction_count,
-                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE customer_id IS NOT NULL
-                    GROUP BY customer_id
+                    WHERE `Customer ID` IS NOT NULL
+                    GROUP BY `Customer ID`
                     ORDER BY total_spent DESC
                     LIMIT 50
                     """
@@ -617,46 +618,55 @@ elif page == "📈 Visualizations":
                     st.write("**Customer Spending Data (Top 50):**")
                     st.dataframe(df, use_container_width=True)
                 
-                elif selected_viz == "Payment Methods":
-                    # Payment method analysis
+                elif selected_viz == "Age Group Analysis":
+                    # Age group analysis
                     query = f"""
                     SELECT 
-                        payment_method,
+                        CASE
+                            WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
+                            WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
+                            WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
+                            WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
+                            WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
+                            ELSE '55+'
+                        END as age_group,
                         COUNT(*) as transaction_count,
-                        ROUND(SUM(total_amount), 2) as total_revenue,
-                        ROUND(AVG(total_amount), 2) as avg_transaction_value
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE payment_method IS NOT NULL
-                    GROUP BY payment_method
+                    WHERE `Age` IS NOT NULL
+                    GROUP BY age_group
                     ORDER BY total_revenue DESC
                     """
                     
                     df = client.query(query).to_dataframe()
                     
-                    # Create pie chart
-                    fig = px.pie(
+                    # Create bar chart
+                    fig = px.bar(
                         df,
-                        values='total_revenue',
-                        names='payment_method',
-                        title="Revenue Distribution by Payment Method"
+                        x='age_group',
+                        y='total_revenue',
+                        title="Revenue by Age Group",
+                        color='transaction_count',
+                        color_continuous_scale='Viridis'
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display data
-                    st.write("**Payment Method Data:**")
+                    st.write("**Age Group Analysis Data:**")
                     st.dataframe(df, use_container_width=True)
                 
                 elif selected_viz == "Product Performance":
                     # Product performance analysis
                     query = f"""
                     SELECT 
-                        product_name,
+                        `Product Category`,
                         COUNT(*) as times_purchased,
-                        ROUND(SUM(total_amount), 2) as total_revenue,
-                        ROUND(SUM(quantity), 0) as total_quantity_sold
+                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+                        ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
                     FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE product_name IS NOT NULL
-                    GROUP BY product_name
+                    WHERE `Product Category` IS NOT NULL
+                    GROUP BY `Product Category`
                     ORDER BY total_revenue DESC
                     LIMIT 20
                     """
@@ -666,10 +676,10 @@ elif page == "📈 Visualizations":
                     # Create horizontal bar chart
                     fig = px.bar(
                         df,
-                        y='product_name',
+                        y='Product Category',
                         x='total_revenue',
                         orientation='h',
-                        title="Top 20 Products by Revenue",
+                        title="Top 20 Product Categories by Revenue",
                         color='times_purchased',
                         color_continuous_scale='Plasma'
                     )
@@ -703,13 +713,13 @@ elif page == "💡 Business Insights":
         kpi_query = f"""
         SELECT 
             COUNT(*) as total_transactions,
-            COUNT(DISTINCT customer_id) as unique_customers,
-            COUNT(DISTINCT store_name) as unique_stores,
-            COUNT(DISTINCT product_name) as unique_products,
-            ROUND(SUM(total_amount), 2) as total_revenue,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            ROUND(SUM(quantity), 0) as total_items_sold,
-            ROUND(AVG(quantity), 2) as avg_items_per_transaction
+            COUNT(DISTINCT `Customer ID`) as unique_customers,
+            COUNT(DISTINCT `Product Category`) as unique_categories,
+            COUNT(DISTINCT `Transaction ID`) as unique_transactions,
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_items_sold,
+            ROUND(AVG(CAST(`Quantity` AS FLOAT64)), 2) as avg_items_per_transaction
         FROM `{project_id}.assignment_one_1.retail_sales`
         """
         
@@ -727,11 +737,11 @@ elif page == "💡 Business Insights":
             st.metric("Avg Transaction Value", f"${kpi_df.iloc[0]['avg_transaction_value']:.2f}")
         
         with col3:
-            st.metric("Unique Stores", f"{kpi_df.iloc[0]['unique_stores']:,}")
+            st.metric("Unique Categories", f"{kpi_df.iloc[0]['unique_categories']:,}")
             st.metric("Total Items Sold", f"{kpi_df.iloc[0]['total_items_sold']:,}")
         
         with col4:
-            st.metric("Unique Products", f"{kpi_df.iloc[0]['unique_products']:,}")
+            st.metric("Unique Transactions", f"{kpi_df.iloc[0]['unique_transactions']:,}")
             st.metric("Avg Items/Transaction", f"{kpi_df.iloc[0]['avg_items_per_transaction']:.2f}")
         
     except Exception as e:
@@ -745,13 +755,13 @@ elif page == "💡 Business Insights":
         # Revenue by category insights
         category_query = f"""
         SELECT 
-            product_category,
-            ROUND(SUM(total_amount), 2) as total_revenue,
+            `Product Category`,
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
             COUNT(*) as transaction_count,
-            ROUND(SUM(total_amount) * 100.0 / SUM(SUM(total_amount)) OVER(), 2) as revenue_percentage
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)) * 100.0 / SUM(SUM(CAST(`Total Amount` AS FLOAT64))) OVER(), 2) as revenue_percentage
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE product_category IS NOT NULL
-        GROUP BY product_category
+        WHERE `Product Category` IS NOT NULL
+        GROUP BY `Product Category`
         ORDER BY total_revenue DESC
         """
         
@@ -768,25 +778,25 @@ elif page == "💡 Business Insights":
             fig = px.pie(
                 category_df,
                 values='total_revenue',
-                names='product_category',
+                names='Product Category',
                 title="Revenue Distribution by Category"
             )
             st.plotly_chart(fig, use_container_width=True)
         
-        # Top performing stores
+        # Top performing product categories
         st.markdown("---")
-        st.subheader("🏪 Top Performing Stores")
+        st.subheader("🏪 Top Performing Product Categories")
         
         store_query = f"""
         SELECT 
-            store_name,
-            ROUND(SUM(total_amount), 2) as total_revenue,
+            `Product Category`,
+            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
             COUNT(*) as transaction_count,
-            ROUND(AVG(total_amount), 2) as avg_transaction_value,
-            COUNT(DISTINCT customer_id) as unique_customers
+            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+            COUNT(DISTINCT `Customer ID`) as unique_customers
         FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE store_name IS NOT NULL
-        GROUP BY store_name
+        WHERE `Product Category` IS NOT NULL
+        GROUP BY `Product Category`
         ORDER BY total_revenue DESC
         LIMIT 10
         """
@@ -796,16 +806,16 @@ elif page == "💡 Business Insights":
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Top 10 Stores by Revenue:**")
+            st.write("**Top 10 Product Categories by Revenue:**")
             st.dataframe(store_df, use_container_width=True)
         
         with col2:
             # Create bar chart
             fig = px.bar(
                 store_df,
-                x='store_name',
+                x='Product Category',
                 y='total_revenue',
-                title="Top 10 Stores by Revenue",
+                title="Top 10 Product Categories by Revenue",
                 color='transaction_count',
                 color_continuous_scale='Viridis'
             )
@@ -828,11 +838,11 @@ elif page == "💡 Business Insights":
             ROUND(SUM(total_spent), 2) as total_spent
         FROM (
             SELECT 
-                customer_id,
-                SUM(total_amount) as total_spent
+                `Customer ID`,
+                SUM(CAST(`Total Amount` AS FLOAT64)) as total_spent
             FROM `{project_id}.assignment_one_1.retail_sales`
-            WHERE customer_id IS NOT NULL
-            GROUP BY customer_id
+            WHERE `Customer ID` IS NOT NULL
+            GROUP BY `Customer ID`
         )
         GROUP BY customer_segment
         ORDER BY total_spent DESC
@@ -870,13 +880,13 @@ elif page == "💡 Business Insights":
         
         **📈 Revenue Optimization:**
         - Focus on high-performing product categories
-        - Optimize store performance in top locations
+        - Optimize pricing strategies for different age groups
         - Develop customer loyalty programs for high-value customers
         
-        **🏪 Store Performance:**
-        - Analyze successful store strategies
-        - Implement best practices across all locations
-        - Consider expansion in high-performing areas
+        **🏪 Product Category Performance:**
+        - Analyze successful product category strategies
+        - Implement best practices across all categories
+        - Consider expansion in high-performing product lines
         
         **👥 Customer Strategy:**
         - Target high-value customer segments
@@ -886,7 +896,7 @@ elif page == "💡 Business Insights":
         **📊 Data Quality:**
         - Monitor data completeness regularly
         - Implement data validation processes
-        - Ensure consistent data entry across stores
+        - Ensure consistent data entry across all channels
         """)
         
     except Exception as e:
@@ -920,16 +930,23 @@ elif page == "📋 About":
     - Payment method performance
     - Product performance insights
     
-    ## 🚀 Technologies Used
-    - **Streamlit:** Web application framework
-    - **BigQuery:** Cloud data warehouse
-    - **Plotly:** Interactive visualizations
-    - **Pandas:** Data manipulation
-    - **Python:** Programming language
-    
-    ---
-    
-    **📊 Retail Sales Analysis Dashboard | Powered by BigQuery & Streamlit**
+         ## 🚀 Technologies Used
+     - **Streamlit:** Web application framework
+     - **BigQuery:** Cloud data warehouse
+     - **Plotly:** Interactive visualizations
+     - **Pandas:** Data manipulation
+     - **Python:** Programming language
+     
+     ## 👥 Group Members
+     - **Nyiko Maluleke** - 3928378
+     - **Mlamli Mkize** - 3948221
+     - **Bulelani Kote** - 4523387
+     - **Alizwa Mdaka** - 3666983
+     - **Siyabonga Masango** - 3857285
+     
+     ---
+     
+     **📊 Retail Sales Analysis Dashboard | Powered by BigQuery & Streamlit**
     """)
     
     # Footer
