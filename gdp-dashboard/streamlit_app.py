@@ -940,7 +940,7 @@ elif page == "📋 About":
      ## 👥 Group Members
      - **Nyiko Maluleke** - 3928378
      - **Mlamli Mkize** - 3948221
-     - **Bulelani Kote** - 4523387
+     - **Bulelani Kote** -  4523387
      - **Alizwa Mdaka** - 3666983
      - **Siyabonga Masango** - 3857285
      
