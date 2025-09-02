@@ -73,7 +73,7 @@ def get_bigquery_client():
         current_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Construct the absolute path to the credentials file
-        credentials_path = os.path.join(current_dir, "istanbul_sales_analysis", "API.JSON")
+        credentials_path = os.path.join(current_dir, "..", "API.JSON")
         
         # Check if file exists
         if not os.path.exists(credentials_path):
@@ -95,7 +95,7 @@ def get_bigquery_client():
         return client, credentials.project_id
     except Exception as e:
         st.error(f"❌ Error connecting to BigQuery: {e}")
-        st.info(f"💡 Please check if the credentials file exists at: istanbul_sales_analysis/API.JSON")
+        st.info(f"💡 Please check if the credentials file exists at: {credentials_path}")
         return None, None
 
 # Home page
