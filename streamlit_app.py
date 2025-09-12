@@ -119,7 +119,7 @@ if page == "🏠 Home":
         
         try:
             # Get basic dataset info
-            dataset_ref = f"{project_id}.assignment_one_1"
+            dataset_ref = f"{project_id}.assignment_1"
             dataset = client.get_dataset(dataset_ref)
             
             # Get table info
@@ -141,7 +141,18 @@ if page == "🏠 Home":
             with col3:
                 st.metric("Project ID", project_id)
                 st.metric("Columns", len(table.schema))
-                st.metric("Last Modified", table.modified.strftime("%Y-%m-%d"))
+                try:
+                    # Get the latest date from your actual data
+                    latest_date_query = f"""
+                    SELECT MAX(`Date`) as latest_data_date
+                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    WHERE `Date` IS NOT NULL
+                    """
+                    latest_date_result = client.query(latest_date_query).to_dataframe()
+                    latest_data_date = latest_date_result.iloc[0]['latest_data_date']
+                    st.metric("Last Modified", latest_data_date.strftime("%Y-%m-%d"))
+                except Exception as e:
+                    st.metric("Last Modified", "Error loading date")
             
         except Exception as e:
             st.error(f"❌ Error fetching dataset info: {e}")
