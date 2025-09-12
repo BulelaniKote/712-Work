@@ -703,6 +703,111 @@ elif page == "📈 Visualizations":
                     st.write("**Product Performance Data (Top 20):**")
                     st.dataframe(df, use_container_width=True)
                 
+                elif selected_viz == "Interactive Sales Over Time":
+                    # Interactive sales over time with date filtering
+                    st.markdown("### 📅 Interactive Sales Over Time")
+                    
+                    # Load data with caching
+                    @st.cache_data
+                    def load_sales_data():
+                        query = f"""
+                        SELECT 
+                            `Date`,
+                            `Total Amount`,
+                            `Product Category`,
+                            `Customer ID`
+                        FROM `{project_id}.assignment_one_1.retail_sales`
+                        WHERE `Date` IS NOT NULL
+                        ORDER BY `Date`
+                        """
+                        return client.query(query).to_dataframe()
+                    
+                    df = load_sales_data()
+                    df['Date'] = pd.to_datetime(df['Date'])
+                    
+                    # Date range filter
+                    min_date = df['Date'].min().date()
+                    max_date = df['Date'].max().date()
+                    
+                    col1, col2 = st.columns([1, 2])
+                    
+                    with col1:
+                        st.markdown("**📅 Filter Options:**")
+                        start_date, end_date = st.date_input(
+                            "Select date range", 
+                            [min_date, max_date],
+                            min_value=min_date,
+                            max_value=max_date
+                        )
+                        
+                        # Category filter
+                        categories = ['All'] + sorted(df['Product Category'].unique().tolist())
+                        selected_category = st.selectbox("Filter by Category:", categories)
+                        
+                        # Customer filter
+                        show_customer_breakdown = st.checkbox("Show customer breakdown")
+                    
+                    # Apply filters
+                    df_filtered = df[
+                        (df['Date'] >= pd.to_datetime(start_date)) & 
+                        (df['Date'] <= pd.to_datetime(end_date))
+                    ]
+                    
+                    if selected_category != 'All':
+                        df_filtered = df_filtered[df_filtered['Product Category'] == selected_category]
+                    
+                    # Aggregate sales by date
+                    if show_customer_breakdown:
+                        sales_over_time = df_filtered.groupby(['Date', 'Customer ID'])['Total Amount'].sum().reset_index()
+                        
+                        # Create interactive line chart with customer breakdown
+                        line_chart = alt.Chart(sales_over_time).mark_line(point=True).encode(
+                            x='Date:T',
+                            y='Total Amount:Q',
+                            color='Customer ID:N',
+                            tooltip=['Date:T', 'Customer ID:N', 'Total Amount:Q']
+                        ).properties(
+                            width=800,
+                            height=400,
+                            title=f"Sales Over Time by Customer ({selected_category})"
+                        ).interactive()
+                    else:
+                        sales_over_time = df_filtered.groupby('Date')['Total Amount'].sum().reset_index()
+                        
+                        # Create interactive line chart
+                        line_chart = alt.Chart(sales_over_time).mark_line(
+                            color='green', 
+                            point=True,
+                            strokeWidth=3
+                        ).encode(
+                            x='Date:T', 
+                            y='Total Amount:Q', 
+                            tooltip=['Date:T', 'Total Amount:Q']
+                        ).properties(
+                            width=800,
+                            height=400,
+                            title=f"Sales Over Time ({selected_category})"
+                        ).interactive()
+                    
+                    with col2:
+                        st.altair_chart(line_chart, use_container_width=True)
+                    
+                    # Display summary statistics
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Total Sales", f"${sales_over_time['Total Amount'].sum():,.2f}")
+                    with col2:
+                        st.metric("Average Daily Sales", f"${sales_over_time['Total Amount'].mean():,.2f}")
+                    with col3:
+                        st.metric("Peak Sales Day", f"${sales_over_time['Total Amount'].max():,.2f}")
+                    with col4:
+                        st.metric("Days in Range", len(sales_over_time))
+                    
+                    # Display filtered data
+                    st.markdown("**📊 Filtered Data:**")
+                    st.dataframe(sales_over_time, use_container_width=True)
+                
             except Exception as e:
                 st.error(f"❌ Error generating visualization: {e}")
                 st.info("💡 This might be due to data type issues or missing columns")
