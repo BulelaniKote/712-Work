@@ -558,7 +558,7 @@ elif page == "📈 Visualizations":
                 
                 elif selected_viz == "Monthly Trends":
                     # Monthly trends analysis
-                                       query = f"""
+                    query = f"""
                     SELECT 
                         EXTRACT(YEAR FROM `Date`) as year,
                         EXTRACT(MONTH FROM `Date`) as month,
