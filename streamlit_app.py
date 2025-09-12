@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime
 import io
+import altair as alt
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
@@ -499,7 +500,8 @@ elif page == "📈 Visualizations":
         "Monthly Trends",
         "Customer Spending",
         "Age Group Analysis",
-        "Product Performance"
+        "Product Performance",
+        "Interactive Sales Over Time"
     ]
     
     selected_viz = st.selectbox("Select visualization:", viz_options)
