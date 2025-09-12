@@ -119,7 +119,7 @@ if page == "🏠 Home":
         
         try:
             # Get basic dataset info
-            dataset_ref = f"{project_id}.assignment_1"
+            dataset_ref = f"{project_id}.assignment_one_1"
             dataset = client.get_dataset(dataset_ref)
             
             # Get table info
