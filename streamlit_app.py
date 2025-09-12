@@ -350,10 +350,10 @@ elif page == "🔍 SQL Queries":
         ORDER BY total_revenue DESC
         """,
         
-        "Monthly Trends": f"""
+                "Monthly Trends": f"""
         SELECT 
-            EXTRACT(YEAR FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as year,
-            EXTRACT(MONTH FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as month,
+            EXTRACT(YEAR FROM `Date`) as year,
+            EXTRACT(MONTH FROM `Date`) as month,
             COUNT(*) as transaction_count,
             ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
             ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
@@ -363,15 +363,15 @@ elif page == "🔍 SQL Queries":
         ORDER BY year, month
         """,
         
-        "Customer Analysis": f"""
+                "Customer Analysis": f"""
         SELECT 
             `Customer ID`,
             COUNT(*) as transaction_count,
             ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
             ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
             COUNT(DISTINCT `Product Category`) as categories_purchased,
-            MIN(SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as first_purchase,
-            MAX(SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as last_purchase
+            MIN(`Date`) as first_purchase,
+            MAX(`Date`) as last_purchase
         FROM `{project_id}.assignment_one_1.retail_sales`
         WHERE `Customer ID` IS NOT NULL
         GROUP BY `Customer ID`
@@ -558,10 +558,10 @@ elif page == "📈 Visualizations":
                 
                 elif selected_viz == "Monthly Trends":
                     # Monthly trends analysis
-                    query = f"""
+                                       query = f"""
                     SELECT 
-                        EXTRACT(YEAR FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as year,
-                        EXTRACT(MONTH FROM SAFE.PARSE_DATE('%Y-%m-%d', `Date`)) as month,
+                        EXTRACT(YEAR FROM `Date`) as year,
+                        EXTRACT(MONTH FROM `Date`) as month,
                         ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
                         COUNT(*) as transaction_count
                     FROM `{project_id}.assignment_one_1.retail_sales`
