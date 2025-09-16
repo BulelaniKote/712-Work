@@ -136,36 +136,36 @@ if page == "🏠 Home":
             table_ref = f"{project_id}.assignment_one_1.retail_sales"
             table = client.get_table(table_ref)
             
-            # Display metrics in a clean layout
+            # Display metrics in a clean layout matching the screenshot
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 st.metric(
-                    label="📊 Number of Transactions", 
+                    label="Number of Transactions", 
                     value=f"{overview_df.iloc[0]['number_of_transactions']:,}"
                 )
                 st.metric(
-                    label="👥 Number of Customers", 
-                    value=f"{overview_df.iloc[0]['number_of_customers']:,}"
+                    label="Number of Columns", 
+                    value=f"{len(table.schema)}"
                 )
             
             with col2:
                 st.metric(
-                    label="💰 Total Revenue", 
-                    value=f"${overview_df.iloc[0]['total_revenue']:,.2f}"
+                    label="Total Number of Customers", 
+                    value=f"{overview_df.iloc[0]['number_of_customers']:,}"
                 )
                 st.metric(
-                    label="📋 Number of Columns", 
-                    value=f"{len(table.schema)}"
+                    label="Kind of Products Being Sold", 
+                    value=f"{overview_df.iloc[0]['product_types']:,}"
                 )
             
             with col3:
                 st.metric(
-                    label="🏷️ Product Types", 
-                    value=f"{overview_df.iloc[0]['product_types']:,}"
+                    label="Total Revenue", 
+                    value=f"${overview_df.iloc[0]['total_revenue']:,.0f}"
                 )
                 st.metric(
-                    label="📦 Total Items Sold", 
+                    label="Total Items Sold", 
                     value=f"{overview_df.iloc[0]['total_items_sold']:,}"
                 )
             
