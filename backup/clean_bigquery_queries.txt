@@ -1,0 +1,168 @@
+-- RETAIL SALES ANALYSIS - BIGQUERY QUERIES
+
+
+-- 1. LATEST DATE QUERY
+-- Get the most recent transaction date in the dataset
+SELECT MAX(`Date`) as latest_data_date
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Date` IS NOT NULL;
+
+-- 2. DATA QUALITY ANALYSIS QUERY
+-- Analyze data completeness across all columns using UNNEST to pivot columns into rows
+SELECT 
+    column_name,
+    COUNT(*) as total_rows,
+    COUNTIF(value IS NULL) as null_count,
+    ROUND(COUNTIF(value IS NULL) * 100.0 / COUNT(*), 2) as null_percentage
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`,
+-- Create array of structs for each column to analyze
+UNNEST([
+    STRUCT('Date' as column_name, CAST(`Date` AS STRING) as value),
+    STRUCT('Product Category' as column_name, `Product Category` as value),
+    STRUCT('Customer ID' as column_name, CAST(`Customer ID` AS STRING) as value),
+    STRUCT('Quantity' as column_name, CAST(`Quantity` AS STRING) as value),
+    STRUCT('Total Amount' as column_name, CAST(`Total Amount` AS STRING) as value),
+    STRUCT('Gender' as column_name, `Gender` as value),
+    STRUCT('Age' as column_name, CAST(`Age` AS STRING) as value)
+])
+GROUP BY column_name
+ORDER BY null_percentage DESC; -- Show columns with highest null percentage first
+
+-- 3. SAMPLE DATA QUERY
+-- Get sample of first 20 records to examine data structure
+SELECT * 
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales` 
+LIMIT 20;
+
+-- 4. BASIC OVERVIEW QUERY
+-- Calculate key business metrics and KPIs for dashboard overview
+SELECT 
+    COUNT(*) as total_transactions,
+    COUNT(DISTINCT `Customer ID`) as unique_customers,
+    COUNT(DISTINCT `Product Category`) as unique_categories,
+    COUNT(DISTINCT `Transaction ID`) as unique_transactions,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`;
+
+-- 5. CATEGORY PERFORMANCE QUERY
+-- Analyze sales performance by product category
+SELECT 
+    `Product Category`,
+    COUNT(*) as transaction_count,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+    ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Product Category` IS NOT NULL
+GROUP BY `Product Category`
+ORDER BY total_revenue DESC; -- Show highest revenue categories first
+
+-- 6. CUSTOMER DEMOGRAPHICS QUERY
+-- Analyze customer demographics and spending patterns by gender
+SELECT 
+    `Gender`,
+    COUNT(*) as transaction_count,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+    COUNT(DISTINCT `Customer ID`) as unique_customers
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Gender` IS NOT NULL
+GROUP BY `Gender`
+ORDER BY total_revenue DESC;
+
+-- 7. MONTHLY TRENDS QUERY
+-- Analyze monthly sales trends and seasonality patterns
+SELECT 
+    EXTRACT(YEAR FROM `Date`) as year,
+    EXTRACT(MONTH FROM `Date`) as month,
+    COUNT(*) as transaction_count,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Date` IS NOT NULL
+GROUP BY year, month
+ORDER BY year, month; -- Chronological order for trend analysis
+
+-- 8. CUSTOMER ANALYSIS QUERY
+-- Identify top 20 customers by total spending and analyze their behavior
+SELECT 
+    `Customer ID`,
+    COUNT(*) as transaction_count,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
+    COUNT(DISTINCT `Product Category`) as categories_purchased,
+    MIN(`Date`) as first_purchase,
+    MAX(`Date`) as last_purchase
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Customer ID` IS NOT NULL
+GROUP BY `Customer ID`
+ORDER BY total_spent DESC -- Highest spending customers first
+LIMIT 20;
+
+-- 9. AGE GROUP ANALYSIS QUERY
+-- Segment customers by age groups and analyze spending patterns
+SELECT 
+    CASE
+        WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
+        WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
+        WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
+        WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
+        WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
+        ELSE '55+'
+    END as age_group,
+    COUNT(*) as transaction_count,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Age` IS NOT NULL
+GROUP BY age_group
+ORDER BY total_revenue DESC; -- Show highest revenue age groups first
+
+-- 10. REVENUE BY CATEGORY QUERY
+-- Analyze revenue distribution across product categories for visualizations
+SELECT 
+    `Product Category`,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+    COUNT(*) as transaction_count
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Product Category` IS NOT NULL
+GROUP BY `Product Category`
+ORDER BY total_revenue DESC;
+
+-- 11. CUSTOMER SPENDING DISTRIBUTION QUERY
+-- Analyze spending patterns of top 50 customers
+SELECT 
+    `Customer ID`,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
+    COUNT(*) as transaction_count,
+    ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Customer ID` IS NOT NULL
+GROUP BY `Customer ID`
+ORDER BY total_spent DESC
+LIMIT 50;
+
+-- 12. PRODUCT PERFORMANCE QUERY
+-- Analyze top 20 product categories by various performance metrics
+SELECT 
+    `Product Category`,
+    COUNT(*) as times_purchased,
+    ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
+    ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Product Category` IS NOT NULL
+GROUP BY `Product Category`
+ORDER BY total_revenue DESC
+LIMIT 20;
+
+-- 13. INTERACTIVE SALES OVER TIME QUERY
+-- Get full dataset for time series analysis and interactive visualizations
+SELECT 
+    `Date`,
+    `Total Amount`,
+    `Product Category`,
+    `Customer ID`
+FROM `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
+WHERE `Date` IS NOT NULL
+ORDER BY `Date`;

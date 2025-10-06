@@ -1,0 +1,32 @@
+{
+  "Appointments (1).xls": {
+    "file_name": "Appointments (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\Appointments (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  },
+  "Clients (1).xls": {
+    "file_name": "Clients (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\Clients (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  },
+  "Dates (1).xls": {
+    "file_name": "Dates (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\Dates (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  },
+  "Patients (1).xls": {
+    "file_name": "Patients (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\Patients (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  },
+  "Specialists (1).xls": {
+    "file_name": "Specialists (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\Specialists (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  },
+  "TimeSlots (1).xls": {
+    "file_name": "TimeSlots (1).xls",
+    "file_path": "MedicalBookingApp\\MedicalBookingApp\\data\\TimeSlots (1).xls",
+    "error": "Excel file format cannot be determined, you must specify an engine manually."
+  }
+}
