@@ -620,27 +620,56 @@ def app():
         # 2. Most Popular Specialties
         st.subheader("🏥 Most Popular Specialties")
         if appointments_data and specialists_data:
-            # Join appointments with specialists
-            appointments_df = pd.DataFrame(appointments_data)
-            specialists_df = pd.DataFrame(specialists_data)
-            
-            if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
-                merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
-                specialty_counts = merged_df['Specialty'].value_counts()
+            try:
+                # Join appointments with specialists
+                appointments_df = pd.DataFrame(appointments_data)
+                specialists_df = pd.DataFrame(specialists_data)
                 
-                # Display metrics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Most Popular", specialty_counts.index[0] if len(specialty_counts) > 0 else "N/A")
-                with col2:
-                    st.metric("Total Bookings", specialty_counts.iloc[0] if len(specialty_counts) > 0 else 0)
-                with col3:
-                    st.metric("Unique Specialties", len(specialty_counts))
+                # Debug: Show available columns
+                st.write("**Debug Info:**")
+                st.write(f"Appointments columns: {list(appointments_df.columns)}")
+                st.write(f"Specialists columns: {list(specialists_df.columns)}")
                 
-                # Visualization
-                fig = px.pie(values=specialty_counts.values, names=specialty_counts.index,
-                           title="Appointment Distribution by Specialty")
-                st.plotly_chart(fig, use_container_width=True)
+                if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
+                    merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
+                    st.write(f"Merged columns: {list(merged_df.columns)}")
+                    
+                    # Check if Specialty column exists after merge
+                    if 'Specialty' in merged_df.columns:
+                        specialty_counts = merged_df['Specialty'].value_counts()
+                        
+                        # Display metrics
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Most Popular", specialty_counts.index[0] if len(specialty_counts) > 0 else "N/A")
+                        with col2:
+                            st.metric("Total Bookings", specialty_counts.iloc[0] if len(specialty_counts) > 0 else 0)
+                        with col3:
+                            st.metric("Unique Specialties", len(specialty_counts))
+                        
+                        # Visualization
+                        if not specialty_counts.empty:
+                            fig = px.pie(values=specialty_counts.values, names=specialty_counts.index,
+                                       title="Appointment Distribution by Specialty")
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("No specialty data available for visualization")
+                    else:
+                        st.error("'Specialty' column not found after merging data")
+                        st.write("Available columns:", list(merged_df.columns))
+                        # Try to find similar column names
+                        specialty_cols = [col for col in merged_df.columns if 'specialty' in col.lower() or 'specialization' in col.lower()]
+                        if specialty_cols:
+                            st.write(f"Found similar columns: {specialty_cols}")
+                        else:
+                            st.write("No specialty-related columns found")
+                else:
+                    st.error("'SpecialistID' column not found in one or both datasets")
+                    st.write("Appointments has SpecialistID:", 'SpecialistID' in appointments_df.columns)
+                    st.write("Specialists has SpecialistID:", 'SpecialistID' in specialists_df.columns)
+            except Exception as e:
+                st.error(f"Error in Most Popular Specialties section: {str(e)}")
+                st.write("This might be due to data format issues or missing columns")
         
         st.divider()
         
