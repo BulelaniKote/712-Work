@@ -495,8 +495,9 @@ def get_medical_appointments():
     
     try:
         # First, let's try a simple query to check if the table exists
+        # Note: table name has trailing space
         simple_query = f"""
-        SELECT * FROM `{project_id}.assignment_one_1.appointments`
+        SELECT * FROM `{project_id}.assignment_one_1.appointments `
         LIMIT 5
         """
         
@@ -525,11 +526,11 @@ def get_medical_appointments():
             t.StartTime,
             t.EndTime,
             t.Label as TimeLabel
-        FROM `{project_id}.assignment_one_1.appointments` a
+        FROM `{project_id}.assignment_one_1.appointments ` a
         LEFT JOIN `{project_id}.assignment_one_1.patients` p ON a.PatientID = p.PatientID
         LEFT JOIN `{project_id}.assignment_one_1.specialists` s ON a.SpecialistID = s.SpecialistID
         LEFT JOIN `{project_id}.assignment_one_1.dates` d ON a.DateKey = d.DateKey
-        LEFT JOIN `{project_id}.assignment_one_1.timeslots` t ON a.TimeSlotID = t.TimeSlotID
+        LEFT JOIN `{project_id}.assignment_one_1.timeslots ` t ON a.TimeSlotID = t.TimeSlotID
         ORDER BY a.DateKey, t.StartTime
         """
         
@@ -597,7 +598,7 @@ def get_medical_timeslots():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.assignment_one_1.timeslots`
+        SELECT * FROM `{project_id}.assignment_one_1.timeslots `
         ORDER BY StartTime
         """
         
