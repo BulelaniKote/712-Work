@@ -64,7 +64,7 @@ def register_user(username, email, password):
     try:
         # Check if user already exists
         query = f"""
-        SELECT username FROM `{project_id}.medical_booking_system.users`
+        SELECT username FROM `{project_id}.assignment_one_1.users`
         WHERE username = @username
         """
         
@@ -81,7 +81,7 @@ def register_user(username, email, password):
         
         # Check if email already exists
         query = f"""
-        SELECT email FROM `{project_id}.medical_booking_system.users`
+        SELECT email FROM `{project_id}.assignment_one_1.users`
         WHERE email = @email
         """
         
@@ -98,7 +98,7 @@ def register_user(username, email, password):
         
         # Insert new user
         query = f"""
-        INSERT INTO `{project_id}.medical_booking_system.users`
+        INSERT INTO `{project_id}.assignment_one_1.users`
         (username, email, password, created_at, role)
         VALUES (@username, @email, @password, @created_at, @role)
         """
@@ -131,7 +131,7 @@ def authenticate_user(username, password):
     
     try:
         query = f"""
-        SELECT username, password FROM `{project_id}.medical_booking_system.users`
+        SELECT username, password FROM `{project_id}.assignment_one_1.users`
         WHERE username = @username
         """
         
@@ -180,7 +180,7 @@ def get_current_user_data():
     
     try:
         query = f"""
-        SELECT username, email, created_at, role FROM `{project_id}.medical_booking_system.users`
+        SELECT username, email, created_at, role FROM `{project_id}.assignment_one_1.users`
         WHERE username = @username
         """
         
@@ -199,7 +199,7 @@ def get_current_user_data():
         
         # Get user's appointments
         appointments_query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.appointments`
+        SELECT * FROM `{project_id}.assignment_one_1.appointments`
         WHERE username = @username
         ORDER BY created_at DESC
         """
@@ -234,7 +234,7 @@ def add_appointment(appointment_data):
     
     try:
         query = f"""
-        INSERT INTO `{project_id}.medical_booking_system.appointments`
+        INSERT INTO `{project_id}.assignment_one_1.appointments`
         (username, name, email, specialty, date, time, reason, status, created_at)
         VALUES (@username, @name, @email, @specialty, @date, @time, @reason, @status, @created_at)
         """
@@ -276,7 +276,7 @@ def get_all_users():
     
     try:
         query = f"""
-        SELECT username, email, created_at, role FROM `{project_id}.medical_booking_system.users`
+        SELECT username, email, created_at, role FROM `{project_id}.assignment_one_1.users`
         ORDER BY created_at DESC
         """
         
@@ -297,7 +297,7 @@ def get_all_users():
         # Get appointments for each user
         appointments_query = f"""
         SELECT username, name, email, specialty, date, time, reason, status, created_at
-        FROM `{project_id}.medical_booking_system.appointments`
+        FROM `{project_id}.assignment_one_1.appointments`
         ORDER BY created_at DESC
         """
         
@@ -336,8 +336,8 @@ def get_all_appointments():
     try:
         query = f"""
         SELECT a.*, u.email as user_email
-        FROM `{project_id}.medical_booking_system.appointments` a
-        JOIN `{project_id}.medical_booking_system.users` u ON a.username = u.username
+        FROM `{project_id}.assignment_one_1.appointments` a
+        JOIN `{project_id}.assignment_one_1.users` u ON a.username = u.username
         ORDER BY a.created_at DESC
         """
         
@@ -412,13 +412,13 @@ def get_specialist_performance():
     return specialist_stats
 
 def ensure_dataset_exists():
-    """Ensure the medical_booking_system dataset exists in BigQuery"""
+    """Ensure the assignment_one_1 dataset exists in BigQuery"""
     client, project_id = get_bigquery_client()
     if not client:
         return False
     
     try:
-        dataset_id = "medical_booking_system"
+        dataset_id = "assignment_one_1"
         dataset_ref = client.dataset(dataset_id)
         
         # Check if dataset exists
@@ -447,7 +447,7 @@ def create_tables():
         return False
     
     try:
-        dataset_id = "medical_booking_system"
+        dataset_id = "assignment_one_1"
         
         # Create users table
         users_table_id = f"{project_id}.{dataset_id}.users"
@@ -497,7 +497,7 @@ def create_admin_user_auto():
     try:
         # Check if admin user exists
         query = f"""
-        SELECT username FROM `{project_id}.medical_booking_system.users`
+        SELECT username FROM `{project_id}.assignment_one_1.users`
         WHERE username = 'admin'
         """
         
@@ -508,7 +508,7 @@ def create_admin_user_auto():
         
         # Create admin user
         query = f"""
-        INSERT INTO `{project_id}.medical_booking_system.users`
+        INSERT INTO `{project_id}.assignment_one_1.users`
         (username, email, password, created_at, role)
         VALUES (@username, @email, @password, @created_at, @role)
         """
@@ -538,7 +538,7 @@ def get_medical_specialists():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.specialists`
+        SELECT * FROM `{project_id}.assignment_one_1.specialists`
         ORDER BY FirstName, LastName
         """
         
@@ -557,7 +557,7 @@ def get_medical_patients():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.patients`
+        SELECT * FROM `{project_id}.assignment_one_1.patients`
         ORDER BY FirstName, LastName
         """
         
@@ -590,11 +590,11 @@ def get_medical_appointments():
             t.StartTime,
             t.EndTime,
             t.Label as TimeLabel
-        FROM `{project_id}.medical_booking_system.appointments` a
-        LEFT JOIN `{project_id}.medical_booking_system.patients` p ON a.PatientID = p.PatientID
-        LEFT JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
-        LEFT JOIN `{project_id}.medical_booking_system.dates` d ON a.DateKey = d.DateKey
-        LEFT JOIN `{project_id}.medical_booking_system.timeslots` t ON a.TimeSlotID = t.TimeSlotID
+        FROM `{project_id}.assignment_one_1.appointments` a
+        LEFT JOIN `{project_id}.assignment_one_1.patients` p ON a.PatientID = p.PatientID
+        LEFT JOIN `{project_id}.assignment_one_1.specialists` s ON a.SpecialistID = s.SpecialistID
+        LEFT JOIN `{project_id}.assignment_one_1.dates` d ON a.DateKey = d.DateKey
+        LEFT JOIN `{project_id}.assignment_one_1.timeslots` t ON a.TimeSlotID = t.TimeSlotID
         ORDER BY a.DateKey, t.StartTime
         """
         
@@ -613,7 +613,7 @@ def get_medical_clients():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.clients`
+        SELECT * FROM `{project_id}.assignment_one_1.clients`
         ORDER BY FirstName, LastName
         """
         
@@ -632,7 +632,7 @@ def get_medical_dates():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.dates`
+        SELECT * FROM `{project_id}.assignment_one_1.dates`
         ORDER BY DateKey
         """
         
@@ -651,7 +651,7 @@ def get_medical_timeslots():
     
     try:
         query = f"""
-        SELECT * FROM `{project_id}.medical_booking_system.timeslots`
+        SELECT * FROM `{project_id}.assignment_one_1.timeslots`
         ORDER BY StartTime
         """
         
@@ -671,7 +671,7 @@ def create_admin_user():
     try:
         # Check if admin user exists
         query = f"""
-        SELECT username FROM `{project_id}.medical_booking_system.users`
+        SELECT username FROM `{project_id}.assignment_one_1.users`
         WHERE username = 'admin'
         """
         
@@ -682,7 +682,7 @@ def create_admin_user():
         
         # Create admin user
         query = f"""
-        INSERT INTO `{project_id}.medical_booking_system.users`
+        INSERT INTO `{project_id}.assignment_one_1.users`
         (username, email, password, created_at, role)
         VALUES (@username, @email, @password, @created_at, @role)
         """
