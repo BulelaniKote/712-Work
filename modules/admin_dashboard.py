@@ -629,13 +629,30 @@ def app():
                 st.write(f"Appointments columns: {list(appointments_df.columns)}")
                 st.write(f"Specialists columns: {list(specialists_df.columns)}")
                 
+                # Show sample data
+                if not appointments_df.empty:
+                    st.write("**Sample Appointments Data:**")
+                    st.write(appointments_df.head(2))
+                if not specialists_df.empty:
+                    st.write("**Sample Specialists Data:**")
+                    st.write(specialists_df.head(2))
+                
                 if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
                     merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
                     st.write(f"Merged columns: {list(merged_df.columns)}")
                     
-                    # Check if Specialty column exists after merge
-                    if 'Specialty' in merged_df.columns:
-                        specialty_counts = merged_df['Specialty'].value_counts()
+                    # Check for specialty column with different possible names
+                    specialty_column = None
+                    possible_specialty_names = ['Specialty', 'specialty', 'Specialization', 'specialization', 'Field', 'field', 'Type', 'type']
+                    
+                    for col_name in possible_specialty_names:
+                        if col_name in merged_df.columns:
+                            specialty_column = col_name
+                            break
+                    
+                    if specialty_column:
+                        st.write(f"Found specialty column: '{specialty_column}'")
+                        specialty_counts = merged_df[specialty_column].value_counts()
                         
                         # Display metrics
                         col1, col2, col3 = st.columns(3)
@@ -654,14 +671,16 @@ def app():
                         else:
                             st.info("No specialty data available for visualization")
                     else:
-                        st.error("'Specialty' column not found after merging data")
+                        st.error("No specialty column found after merging data")
                         st.write("Available columns:", list(merged_df.columns))
                         # Try to find similar column names
-                        specialty_cols = [col for col in merged_df.columns if 'specialty' in col.lower() or 'specialization' in col.lower()]
+                        specialty_cols = [col for col in merged_df.columns if 'specialty' in col.lower() or 'specialization' in col.lower() or 'field' in col.lower()]
                         if specialty_cols:
                             st.write(f"Found similar columns: {specialty_cols}")
+                            st.write("**Suggestion:** The column might be named differently. Please check the column names above.")
                         else:
                             st.write("No specialty-related columns found")
+                            st.write("**Suggestion:** The specialists table might not have a specialty field, or it's named differently.")
                 else:
                     st.error("'SpecialistID' column not found in one or both datasets")
                     st.write("Appointments has SpecialistID:", 'SpecialistID' in appointments_df.columns)
