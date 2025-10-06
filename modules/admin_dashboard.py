@@ -404,13 +404,29 @@ def app():
                 
                 # Specialty distribution
                 if 'Specialty' in specialists_df.columns:
-                    specialty_counts = specialists_df['Specialty'].value_counts()
-                    fig = px.bar(x=specialty_counts.index, y=specialty_counts.values,
-                               title="Specialists by Specialty",
-                               color=specialty_counts.values,
-                               color_continuous_scale='Greens')
-                    fig.update_xaxis(tickangle=45)
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        specialty_counts = specialists_df['Specialty'].value_counts()
+                        if not specialty_counts.empty:
+                            fig = px.bar(x=specialty_counts.index, y=specialty_counts.values,
+                                       title="Specialists by Specialty",
+                                       color=specialty_counts.values,
+                                       color_continuous_scale='Greens')
+                            fig.update_xaxis(tickangle=45)
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("No specialty data available")
+                    except Exception as e:
+                        st.error(f"Error creating specialty chart: {str(e)}")
+                        # Fallback: simple bar chart without color scaling
+                        try:
+                            specialty_counts = specialists_df['Specialty'].value_counts()
+                            if not specialty_counts.empty:
+                                fig = px.bar(x=specialty_counts.index, y=specialty_counts.values,
+                                           title="Specialists by Specialty")
+                                fig.update_xaxis(tickangle=45)
+                                st.plotly_chart(fig, use_container_width=True)
+                        except:
+                            st.info("Unable to create specialty visualization")
         
         # Data Quality Assessment
         st.subheader("🔍 Data Quality Assessment")
@@ -714,11 +730,22 @@ def app():
                 st.dataframe(top_df, use_container_width=True)
                 
                 # Visualization
-                fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
-                           title="Top 5 Most Booked Specialists",
-                           color='Total_Bookings', color_continuous_scale='Greens')
-                fig.update_xaxis(tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
+                               title="Top 5 Most Booked Specialists",
+                               color='Total_Bookings', color_continuous_scale='Greens')
+                    fig.update_xaxis(tickangle=45)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error creating top specialists chart: {str(e)}")
+                    # Fallback: simple bar chart
+                    try:
+                        fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
+                                   title="Top 5 Most Booked Specialists")
+                        fig.update_xaxis(tickangle=45)
+                        st.plotly_chart(fig, use_container_width=True)
+                    except:
+                        st.info("Unable to create top specialists visualization")
         
         st.divider()
         
