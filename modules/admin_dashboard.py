@@ -377,10 +377,19 @@ def app():
                 
                 # Rating distribution
                 if 'Rating' in specialists_df.columns:
-                    fig = px.histogram(specialists_df, x='Rating', nbins=10,
-                                     title="Specialist Rating Distribution",
-                                     color='Rating', color_continuous_scale='Blues')
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Convert Rating to numeric and handle any non-numeric values
+                    specialists_df['Rating_Numeric'] = pd.to_numeric(specialists_df['Rating'], errors='coerce')
+                    # Remove any NaN values
+                    rating_data = specialists_df.dropna(subset=['Rating_Numeric'])
+                    
+                    if not rating_data.empty:
+                        fig = px.histogram(rating_data, x='Rating_Numeric', nbins=10,
+                                         title="Specialist Rating Distribution",
+                                         color='Rating_Numeric', color_continuous_scale='Blues')
+                        fig.update_layout(xaxis_title="Rating", yaxis_title="Count")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No valid rating data available for visualization")
                 
                 # Specialty distribution
                 if 'Specialty' in specialists_df.columns:
@@ -553,10 +562,13 @@ def app():
                 st.dataframe(avg_ratings[['FullName', 'Specialty', 'Rating']].round(2), use_container_width=True)
                 
                 # Visualization
-                fig = px.bar(avg_ratings, x='FullName', y='Rating', 
+                # Convert Rating to numeric for proper color scaling
+                avg_ratings['Rating_Numeric'] = pd.to_numeric(avg_ratings['Rating'], errors='coerce')
+                fig = px.bar(avg_ratings, x='FullName', y='Rating_Numeric', 
                            title="Average Ratings Per Specialist",
-                           color='Rating', color_continuous_scale='RdYlGn')
+                           color='Rating_Numeric', color_continuous_scale='RdYlGn')
                 fig.update_xaxis(tickangle=45)
+                fig.update_layout(yaxis_title="Average Rating")
                 st.plotly_chart(fig, use_container_width=True)
         
         st.divider()
