@@ -83,7 +83,7 @@ with st.container():
     elif selected == "📊 Upload Data" and is_admin():
         from modules.data_upload import app as upload_app
         upload_app()
-    else:
+        else:
         # If user tries to access protected pages without login, show login
         from modules.login import app as login_app
         login_app()
