@@ -440,6 +440,112 @@ def app():
         with col3:
             st.metric("System Uptime", "99.9%", delta="0.1% from last month")
         
+        # Database Schema Diagram
+        st.subheader("🗄️ Database Schema & Relationships")
+        st.markdown("**Visual representation of the medical booking system database structure**")
+        
+        try:
+            # Display the data relationships diagram
+            st.image("data_relationships.png", caption="Medical Booking System Database Schema", use_column_width=True)
+            
+            # Add schema description
+            st.markdown("""
+            **Database Schema Overview:**
+            - **Appointments**: Central table linking patients, specialists, dates, and time slots
+            - **Patients**: Patient demographic and contact information
+            - **Specialists**: Medical specialist information and specialties
+            - **Clients**: Client management data (manages patients)
+            - **Dates**: Date dimension table for temporal analysis
+            - **TimeSlots**: Available appointment time slots
+            """)
+            
+            # Add PlantUML source code as collapsible section
+            with st.expander("📝 View PlantUML Source Code"):
+                st.code("""
+@startuml
+!theme plain
+skinparam linetype ortho
+
+entity "Appointments" as appointments {
+  * AppointmentID : INTEGER <<PK>>
+  --
+  * PatientID : INTEGER <<FK>>
+  * SpecialistID : INTEGER <<FK>>
+  * DateKey : INTEGER <<FK>>
+  * TimeSlotID : INTEGER <<FK>>
+  * Status : STRING
+}
+
+entity "Patients" as patients {
+  * PatientID : INTEGER <<PK>>
+  --
+  * FirstName : STRING
+  * LastName : STRING
+  * Contact : STRING
+  * CellNumber : STRING
+  * Email : STRING
+  * DateRegistered : DATE
+}
+
+entity "Specialists" as specialists {
+  * SpecialistID : INTEGER <<PK>>
+  --
+  * FirstName : STRING
+  * LastName : STRING
+  * Specialty : STRING
+  * Contact : STRING
+  * Email : STRING
+  * Rating : FLOAT
+}
+
+entity "Clients" as clients {
+  * ClientID : INTEGER <<PK>>
+  --
+  * FirstName : STRING
+  * LastName : STRING
+  * ClientContact : STRING
+  * ClientCellNumber : STRING
+}
+
+entity "Dates" as dates {
+  * DateKey : INTEGER <<PK>>
+  --
+  * Year : INTEGER
+  * Month : INTEGER
+  * Day : INTEGER
+  * Weekday : STRING
+}
+
+entity "TimeSlots" as timeslots {
+  * TimeSlotID : INTEGER <<PK>>
+  --
+  * StartTime : TIME
+  * EndTime : TIME
+  * Label : STRING
+}
+
+' Relationships
+appointments ||--|| patients : "belongs to"
+appointments ||--|| specialists : "scheduled with"
+appointments ||--|| dates : "scheduled on"
+appointments ||--|| timeslots : "scheduled at"
+clients ||--o{ patients : "manages"
+
+note right of clients
+  Clients table manages
+  patient relationships
+  and client information
+end note
+
+@enduml
+                """, language="text")
+            
+        except Exception as e:
+            st.error(f"Could not load database schema diagram: {e}")
+            st.info("The data_relationships.png file should be in the root directory")
+        
+        st.divider()
+        
         # Business Intelligence Insights
         st.subheader("💡 Business Intelligence Insights")
         
