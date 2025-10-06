@@ -627,9 +627,17 @@ def app():
                 if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
                     merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
                     
-                    # Check if Specialty column exists after merge
-                    if 'Specialty' in merged_df.columns:
-                        specialty_counts = merged_df['Specialty'].value_counts()
+                    # Check if Specialty column exists after merge (use Specialty_x from appointments merge)
+                    specialty_column = None
+                    if 'Specialty_x' in merged_df.columns:
+                        specialty_column = 'Specialty_x'
+                    elif 'Specialty_y' in merged_df.columns:
+                        specialty_column = 'Specialty_y'
+                    elif 'Specialty' in merged_df.columns:
+                        specialty_column = 'Specialty'
+                    
+                    if specialty_column:
+                        specialty_counts = merged_df[specialty_column].value_counts()
                         
                         # Display metrics
                         col1, col2, col3 = st.columns(3)
@@ -648,7 +656,7 @@ def app():
                         else:
                             st.info("No specialty data available for visualization")
                     else:
-                        st.error("'Specialty' column not found after merging data")
+                        st.error("No specialty column found after merging data")
                         st.write("Available columns:", list(merged_df.columns))
                 else:
                     st.error("'SpecialistID' column not found in one or both datasets")
