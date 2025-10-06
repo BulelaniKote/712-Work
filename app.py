@@ -87,7 +87,7 @@ def authenticate_user(username, password):
                 return False, "Invalid password"
         else:
             return False, "User not found"
-    except Exception as e:
+        except Exception as e:
         return False, f"Error: {str(e)}"
 
 def register_user(username, email, password):
@@ -159,7 +159,7 @@ with st.sidebar:
         # Update current page when selection changes
         if selected != st.session_state.get('current_page', "🏠 Home"):
             st.session_state.current_page = selected
-    else:
+        else:
         # Navigation menu for non-logged in users
         selected = st.selectbox(
             "📋 Navigation",
@@ -195,7 +195,7 @@ with st.container():
                             st.session_state.current_page = "🏠 Home"
                             st.success(message)
                             st.rerun()
-                        else:
+                    else:
                             st.error(message)
         
         with tab2:
@@ -266,13 +266,13 @@ with st.container():
         st.markdown("Schedule your medical appointment.")
         
         with st.form("appointment_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
                 specialty = st.selectbox("Specialty", ["Pediatrician", "Dermatologist", "Cardiologist", "Neurologist", "Orthopedist"])
                 date = st.date_input("Preferred Date")
-            
-            with col2:
+        
+        with col2:
                 time = st.selectbox("Preferred Time", ["09:00", "11:00", "13:00", "15:00"])
                 reason = st.text_area("Reason for Visit", placeholder="Brief description of your symptoms or concerns")
             
@@ -297,12 +297,12 @@ with st.container():
                     st.write(f"**Specialist:** {appointment['Specialist']}")
                     st.write(f"**Specialty:** {appointment['Specialty']}")
                     st.write(f"**Status:** {appointment['Status']}")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
+        
+        col1, col2 = st.columns(2)
+        with col1:
                         if st.button(f"Reschedule", key=f"reschedule_{i}"):
                             st.info("Reschedule feature coming soon!")
-                    with col2:
+        with col2:
                         if st.button(f"Cancel", key=f"cancel_{i}"):
                             st.warning("Cancel feature coming soon!")
         else:
