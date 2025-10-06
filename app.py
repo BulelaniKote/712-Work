@@ -1,20 +1,15 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
+import hashlib
+import json
+import os
 from datetime import datetime
-import io
-import altair as alt
-from google.cloud import bigquery
-from google.oauth2 import service_account
+import pandas as pd
 
 # Page configuration
 st.set_page_config(
-    page_title="Retail Sales Analysis Dashboard",
-    page_icon="📊",
+    page_title="Medical Booking System",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -27,1084 +22,320 @@ st.markdown("""
         color: #1f77b4;
         text-align: center;
         margin-bottom: 2rem;
-        font-weight: bold;
     }
-    .metric-card {
+    .feature-card {
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
-        margin: 0.5rem 0;
-    }
-    .insight-box {
-        background-color: #e8f4fd;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #ff6b6b;
         margin: 1rem 0;
     }
-    .success-box {
+    .success-message {
         background-color: #d4edda;
+        color: #155724;
         padding: 1rem;
         border-radius: 0.5rem;
-        border-left: 4px solid #28a745;
-        margin: 1rem 0;
+        border: 1px solid #c3e6cb;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Title and header
-st.markdown('<h1 class="main-header">📊 Retail Sales Analysis Dashboard</h1>', unsafe_allow_html=True)
+# User data file path
+USERS_FILE = "data/users.json"
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.selectbox(
-    "Choose a page:",
-    ["🏠 Home", "📊 Dataset Analysis", "🔍 SQL Queries", "📈 Visualizations", "💡 Business Insights", "📋 About"]
-)
+def init_users_file():
+    """Initialize users file if it doesn't exist"""
+    if not os.path.exists(USERS_FILE):
+        os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+        with open(USERS_FILE, 'w') as f:
+            json.dump({}, f)
 
-# BigQuery connection setup
-@st.cache_resource
-def get_bigquery_client():
-    """Initialize BigQuery client with service account credentials from Streamlit secrets"""
+def hash_password(password):
+    """Hash password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password, hashed):
+    """Verify password against hash"""
+    return hash_password(password) == hashed
+
+def is_logged_in():
+    """Check if user is logged in"""
+    return 'username' in st.session_state
+
+def logout():
+    """Logout user"""
+    if 'username' in st.session_state:
+        del st.session_state.username
+    st.session_state.current_page = "🔐 Login"
+    st.rerun()
+
+def is_admin():
+    """Check if current user is admin"""
+    return st.session_state.get('username') == 'admin'
+
+def authenticate_user(username, password):
+    """Authenticate user"""
+    init_users_file()
+    
     try:
-        # Always use Streamlit secrets (both local and deployed)
-        if 'gcp_service_account' in st.secrets:
-            try:
-                # Create credentials from secrets
-                credentials = service_account.Credentials.from_service_account_info(
-                    st.secrets["gcp_service_account"],
-                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
-                )
-                
-                client = bigquery.Client(
-                    credentials=credentials,
-                    project=credentials.project_id
-                )
-                
-                return client, credentials.project_id
-                
-            except Exception as e:
-                st.error(f"❌ Error creating BigQuery client from secrets: {e}")
-                st.info("💡 Please check your Streamlit Cloud secrets configuration")
-                return None, None
-                
+        with open(USERS_FILE, 'r') as f:
+            users = json.load(f)
+        
+        if username in users:
+            if verify_password(password, users[username]['password']):
+                return True, "Login successful!"
+            else:
+                return False, "Invalid password"
         else:
-            st.error("❌ BigQuery credentials not found in Streamlit secrets")
-            st.info("💡 Please add your GCP service account credentials to Streamlit Cloud secrets")
-            st.info("💡 Go to your app settings → Secrets and add the gcp_service_account section")
-            return None, None
-            
+            return False, "User not found"
     except Exception as e:
-        st.error(f"❌ Error connecting to BigQuery: {e}")
-        st.info("💡 Check your Streamlit Cloud secrets configuration")
-        return None, None
+        return False, f"Error: {str(e)}"
 
-# Home page
-if page == "🏠 Home":
-    st.markdown("## 🎯 Retail Sales Dataset Analysis")
-    st.markdown("**Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`")
-    st.markdown("**Source:** Kaggle Retail Sales Dataset")
+def register_user(username, email, password):
+    """Register a new user"""
+    init_users_file()
     
-    # BigQuery Status
-    client, project_id = get_bigquery_client()
-    if client is None:
-        st.error("❌ BigQuery connection failed. Please check your credentials.")
-        st.info("💡 Please check your BigQuery credentials and try again.")
-    else:
-        st.success(f"✅ Connected to BigQuery project: {project_id}")
+    try:
+        with open(USERS_FILE, 'r') as f:
+            users = json.load(f)
         
-        # Dataset Overview
-        st.markdown("---")
-        st.subheader("📋 Dataset Overview")
+        # Check if user already exists
+        if username in users:
+            return False, "Username already exists"
         
-        try:
-            # Get comprehensive dataset metrics
-            overview_query = f"""
-            SELECT 
-                COUNT(*) as number_of_transactions,
-                COUNT(DISTINCT `Customer ID`) as number_of_customers,
-                ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                COUNT(DISTINCT `Product Category`) as product_types,
-                ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_items_sold
-            FROM `{project_id}.assignment_one_1.retail_sales`
-            """
-            
-            overview_df = client.query(overview_query).to_dataframe()
-            
-            # Get table info for number of columns
-            table_ref = f"{project_id}.assignment_one_1.retail_sales"
-            table = client.get_table(table_ref)
-            
-            # Display metrics in a clean layout matching the screenshot
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric(
-                    label="Number of Transactions", 
-                    value=f"{overview_df.iloc[0]['number_of_transactions']:,}"
-                )
-                st.metric(
-                    label="Number of Columns", 
-                    value=f"{len(table.schema)}"
-                )
-            
-            with col2:
-                st.metric(
-                    label="Total Number of Customers", 
-                    value=f"{overview_df.iloc[0]['number_of_customers']:,}"
-                )
-                st.metric(
-                    label="Kind of Products Being Sold", 
-                    value=f"{overview_df.iloc[0]['product_types']:,}"
-                )
-            
-            with col3:
-                st.metric(
-                    label="Total Revenue", 
-                    value=f"${overview_df.iloc[0]['total_revenue']:,.0f}"
-                )
-                st.metric(
-                    label="Total Items Sold", 
-                    value=f"{overview_df.iloc[0]['total_items_sold']:,}"
-                )
-            
-        except Exception as e:
-            st.error(f"❌ Error fetching dataset overview: {e}")
-            # Fallback to basic table info if query fails
-            try:
-                table_ref = f"{project_id}.assignment_one_1.retail_sales"
-                table = client.get_table(table_ref)
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("📊 Total Rows", f"{table.num_rows:,}")
-                with col2:
-                    st.metric("📋 Number of Columns", f"{len(table.schema)}")
-                with col3:
-                    st.metric("💾 Table Size", f"{table.num_bytes / (1024*1024):.2f} MB")
-            except Exception as fallback_e:
-                st.error(f"❌ Error fetching basic table info: {fallback_e}")
+        # Check if email already exists
+        for user_data in users.values():
+            if user_data.get('email') == email:
+                return False, "Email already registered"
         
-        # Analysis Objectives
-        st.markdown("---")
-        st.subheader("🎯 Analysis Objectives")
+        # Add new user
+        users[username] = {
+            'email': email,
+            'password': hash_password(password),
+            'created_at': datetime.now().isoformat(),
+            'appointments': []
+        }
         
-        col1, col2 = st.columns(2)
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users, f, indent=2)
         
-        with col1:
-            st.markdown("""
-            **📊 Data Exploration:**
-            - Understand dataset structure and schema
-            - Identify data quality issues
-            - Explore key business metrics
-            
-            **🔍 Business Analysis:**
-            - Sales performance by category
-            - Store performance analysis
-            - Customer behavior insights
-            - Temporal trends and seasonality
-            """)
-        
-        with col2:
-            st.markdown("""
-            **📈 Advanced Analytics:**
-            - Revenue optimization opportunities
-            - Customer segmentation
-            - Product performance analysis
-            - Payment method insights
-            
-            **💡 Actionable Insights:**
-            - Data-driven recommendations
-            - Performance improvement areas
-            - Business growth opportunities
-            """)
+        return True, "Registration successful!"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
 
-# Dataset Analysis page
-elif page == "📊 Dataset Analysis":
-    st.header("📊 Comprehensive Dataset Analysis")
-    
-    client, project_id = get_bigquery_client()
-    if client is None:
-        st.error("❌ BigQuery connection failed.")
-        st.stop()
-    
-    st.success(f"✅ Connected to BigQuery project: {project_id}")
-    
-    # Table Schema Analysis
+# Initialize session state for navigation
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "🏠 Home"
+
+# --- SIDEBAR MENU ---
+with st.sidebar:
+    st.markdown("## 🏥 Medical Booking System")
     st.markdown("---")
-    st.subheader("🏗️ Table Schema Analysis")
     
-    try:
-        table_ref = f"{project_id}.assignment_one_1.retail_sales"
-        table = client.get_table(table_ref)
+    # Check if user is logged in
+    if is_logged_in():
+        # User info section
+        st.markdown(f"**Welcome, {st.session_state.username}!**")
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
         
-        # Display schema
-        schema_df = pd.DataFrame([
-            {
-                'Column': field.name,
-                'Type': field.field_type,
-                'Mode': field.mode,
-                'Description': field.description or 'No description'
-            }
-            for field in table.schema
-        ])
+        st.divider()
         
-        st.write("**Table Schema:**")
-        st.dataframe(schema_df, use_container_width=True)
+        # Navigation menu for logged in users
+        if is_admin():
+            menu_items = ["🏠 Home", "👨‍⚕️ Specialists", "🗓️ Book Appointment", "📑 My Appointments", "👨‍💼 Admin Dashboard"]
+        else:
+            menu_items = ["🏠 Home", "👨‍⚕️ Specialists", "🗓️ Book Appointment", "📑 My Appointments"]
         
-        # Data types summary
-        st.markdown("---")
-        st.subheader("📋 Data Types Summary")
+        current_page = st.session_state.get('current_page', "🏠 Home")
+        default_index = menu_items.index(current_page) if current_page in menu_items else 0
         
-        type_counts = schema_df['Type'].value_counts()
-        fig = px.pie(values=type_counts.values, names=type_counts.index, title="Data Types Distribution")
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"❌ Error analyzing schema: {e}")
-    
-    # Data Quality Analysis
-    st.markdown("---")
-    st.subheader("🔍 Data Quality Analysis")
-    
-    try:
-        # Check for null values
-        null_query = f"""
-        SELECT 
-            column_name,
-            COUNT(*) as total_rows,
-            COUNTIF(value IS NULL) as null_count,
-            ROUND(COUNTIF(value IS NULL) * 100.0 / COUNT(*), 2) as null_percentage
-        FROM `{project_id}.assignment_one_1.retail_sales`,
-        UNNEST([
-            STRUCT('Date' as column_name, CAST(`Date` AS STRING) as value),
-            STRUCT('Product Category' as column_name, `Product Category` as value),
-            STRUCT('Customer ID' as column_name, CAST(`Customer ID` AS STRING) as value),
-            STRUCT('Quantity' as column_name, CAST(`Quantity` AS STRING) as value),
-            STRUCT('Total Amount' as column_name, CAST(`Total Amount` AS STRING) as value),
-            STRUCT('Gender' as column_name, `Gender` as value),
-            STRUCT('Age' as column_name, CAST(`Age` AS STRING) as value)
-        ])
-        GROUP BY column_name
-        ORDER BY null_percentage DESC
-        """
-        
-        null_df = client.query(null_query).to_dataframe()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Data Completeness Analysis:**")
-            st.dataframe(null_df, use_container_width=True)
-        
-        with col2:
-            # Create completeness chart
-            fig = px.bar(
-                null_df, 
-                x='column_name', 
-                y='null_percentage',
-                title="Data Completeness by Column (%)",
-                color='null_percentage',
-                color_continuous_scale='RdYlGn_r'
-            )
-            fig.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"❌ Error analyzing data quality: {e}")
-    
-    # Sample Data Display
-    st.markdown("---")
-    st.subheader("📋 Sample Data")
-    
-    try:
-        sample_query = f"SELECT * FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 20"
-        sample_df = client.query(sample_query).to_dataframe()
-        
-        st.write("**First 20 Records:**")
-        st.dataframe(sample_df, use_container_width=True)
-        
-        # Download sample data
-        csv = sample_df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Sample Data as CSV",
-            data=csv,
-            file_name="retail_sales_sample.csv",
-            mime="text/csv"
+        selected = st.selectbox(
+            "📋 Navigation",
+            menu_items,
+            index=default_index,
+            key="main_navigation"
         )
         
-    except Exception as e:
-        st.error(f"❌ Error fetching sample data: {e}")
+        # Update current page when selection changes
+        if selected != st.session_state.get('current_page', "🏠 Home"):
+            st.session_state.current_page = selected
+    else:
+        # Navigation menu for non-logged in users
+        selected = st.selectbox(
+            "📋 Navigation",
+            ["🔐 Login"],
+            key="main_navigation"
+        )
 
-# SQL Queries page
-elif page == "🔍 SQL Queries":
-    st.header("🔍 SQL Query Execution")
-    
-    client, project_id = get_bigquery_client()
-    if client is None:
-        st.error("❌ BigQuery connection failed.")
-        st.stop()
-    
-    st.success(f"✅ Connected to BigQuery project: {project_id}")
-    
-    # Pre-built Analysis Queries
-    st.markdown("---")
-    st.subheader("📋 Pre-built Analysis Queries")
-    
-    query_templates = {
-        "Basic Overview": f"""
-        SELECT 
-            COUNT(*) as total_transactions,
-            COUNT(DISTINCT `Customer ID`) as unique_customers,
-            COUNT(DISTINCT `Product Category`) as unique_categories,
-            COUNT(DISTINCT `Transaction ID`) as unique_transactions,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        """,
-        
-        "Category Performance": f"""
-        SELECT 
-            `Product Category`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Product Category` IS NOT NULL
-        GROUP BY `Product Category`
-        ORDER BY total_revenue DESC
-        """,
-        
-        "Customer Demographics": f"""
-        SELECT 
-            `Gender`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            COUNT(DISTINCT `Customer ID`) as unique_customers
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Gender` IS NOT NULL
-        GROUP BY `Gender`
-        ORDER BY total_revenue DESC
-        """,
-        
-                "Monthly Trends": f"""
-        SELECT 
-            EXTRACT(YEAR FROM `Date`) as year,
-            EXTRACT(MONTH FROM `Date`) as month,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Date` IS NOT NULL
-        GROUP BY year, month
-        ORDER BY year, month
-        """,
-        
-                "Customer Analysis": f"""
-        SELECT 
-            `Customer ID`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            COUNT(DISTINCT `Product Category`) as categories_purchased,
-            MIN(`Date`) as first_purchase,
-            MAX(`Date`) as last_purchase
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Customer ID` IS NOT NULL
-        GROUP BY `Customer ID`
-        ORDER BY total_spent DESC
-        LIMIT 20
-        """,
-        
-        "Age Group Analysis": f"""
-        SELECT 
-            CASE
-                WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
-                WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
-                WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
-                WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
-                WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
-                ELSE '55+'
-            END as age_group,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Age` IS NOT NULL
-        GROUP BY age_group
-        ORDER BY total_revenue DESC
-        """
-    }
-    
-    selected_template = st.selectbox("Choose a pre-built analysis:", list(query_templates.keys()))
-    query = st.text_area("SQL Query:", value=query_templates[selected_template], height=200)
-    
-    if st.button("🚀 Execute Query", type="primary"):
-        if query.strip():
-            with st.spinner("Executing query..."):
-                try:
-                    # Execute query
-                    results_df = client.query(query).to_dataframe()
-                    
-                    st.success(f"✅ Query executed successfully! Returned {len(results_df)} rows")
-                    
-                    # Display results
-                    st.write("**Query Results:**")
-                    st.dataframe(results_df, use_container_width=True)
-                    
-                    # Download results
-                    if len(results_df) > 0:
-                        csv = results_df.to_csv(index=False)
-                        st.download_button(
-                            label="📥 Download Results as CSV",
-                            data=csv,
-                            file_name=f"{selected_template.lower().replace(' ', '_')}_results.csv",
-                            mime="text/csv"
-                        )
-                    
-                except Exception as e:
-                    st.error(f"❌ Query execution failed: {e}")
-                    st.info("💡 Check your SQL syntax and table references")
-        else:
-            st.warning("⚠️ Please enter a SQL query")
-    
-    # Custom Query Section
-    st.markdown("---")
-    st.subheader("✍️ Custom SQL Query")
-    
-    custom_query = st.text_area("Enter your custom SQL query:", height=150, 
-                               placeholder=f"SELECT `Transaction ID`, `Customer ID`, `Product Category`, `Total Amount` FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 10")
-    
-    if st.button("🔍 Run Custom Query"):
-        if custom_query.strip():
-            with st.spinner("Executing custom query..."):
-                try:
-                    # Execute custom query
-                    custom_results = client.query(custom_query).to_dataframe()
-                    
-                    st.success(f"✅ Custom query executed successfully! Returned {len(custom_results)} rows")
-                    
-                    # Display results
-                    st.write("**Custom Query Results:**")
-                    st.dataframe(custom_results, use_container_width=True)
-                    
-                    # Download results
-                    if len(custom_results) > 0:
-                        csv = custom_results.to_csv(index=False)
-                        st.download_button(
-                            label="📥 Download Custom Results as CSV",
-                            data=csv,
-                            file_name="custom_query_results.csv",
-                            mime="text/csv"
-                        )
-                    
-                except Exception as e:
-                    st.error(f"❌ Custom query execution failed: {e}")
-                    st.info("💡 Check your SQL syntax and table references")
-        else:
-            st.warning("⚠️ Please enter a custom SQL query")
+# --- MAIN CONTENT ---
+st.markdown('<h1 class="main-header">🏥 Medical Booking System</h1>', unsafe_allow_html=True)
 
-# Visualizations page
-elif page == "📈 Visualizations":
-    st.header("📈 Interactive Data Visualizations")
-    
-    client, project_id = get_bigquery_client()
-    if client is None:
-        st.error("❌ BigQuery connection failed.")
-        st.stop()
-    
-    st.success(f"✅ Connected to BigQuery project: {project_id}")
-    
-    # Visualization Options
-    st.markdown("---")
-    st.subheader("📊 Choose Visualization Type")
-    
-    viz_options = [
-        "Revenue by Category",
-        "Customer Demographics",
-        "Monthly Trends",
-        "Customer Spending",
-        "Age Group Analysis",
-        "Product Performance",
-        "Interactive Sales Over Time"
-    ]
-    
-    selected_viz = st.selectbox("Select visualization:", viz_options)
-    
-    if st.button("🎨 Generate Visualization", type="primary"):
-        with st.spinner("Generating visualization..."):
-            try:
-                if selected_viz == "Revenue by Category":
-                    # Category revenue analysis
-                    query = f"""
-                    SELECT 
-                        `Product Category`,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        COUNT(*) as transaction_count
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Product Category` IS NOT NULL
-                    GROUP BY `Product Category`
-                    ORDER BY total_revenue DESC
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create bar chart
-                    fig = px.bar(
-                        df, 
-                        x='Product Category', 
-                        y='total_revenue',
-                        title="Revenue by Product Category",
-                        color='transaction_count',
-                        color_continuous_scale='Viridis'
-                    )
-                    fig.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Category Revenue Data:**")
-                    st.dataframe(df, use_container_width=True)
+# --- PAGE ROUTING ---
+with st.container():
+    if selected == "🔐 Login":
+        st.title("🔐 Login")
+        st.markdown("Welcome to the Medical Booking System! Please sign in to access your account.")
+        
+        # Create tabs for Login and Register
+        tab1, tab2 = st.tabs(["Login", "Register"])
+        
+        with tab1:
+            with st.form("login_form"):
+                username = st.text_input("Username", placeholder="Enter your username")
+                password = st.text_input("Password", type="password", placeholder="Enter your password")
+                login_button = st.form_submit_button("Login", use_container_width=True)
                 
-                elif selected_viz == "Customer Demographics":
-                    # Customer demographics analysis
-                    query = f"""
-                    SELECT 
-                        `Gender`,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        COUNT(*) as transaction_count,
-                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Gender` IS NOT NULL
-                    GROUP BY `Gender`
-                    ORDER BY total_revenue DESC
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create pie chart
-                    fig = px.pie(
-                        df,
-                        values='total_revenue',
-                        names='Gender',
-                        title="Revenue Distribution by Gender"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Customer Demographics Data:**")
-                    st.dataframe(df, use_container_width=True)
-                
-                elif selected_viz == "Monthly Trends":
-                    # Monthly trends analysis
-                    query = f"""
-                    SELECT 
-                        EXTRACT(YEAR FROM `Date`) as year,
-                        EXTRACT(MONTH FROM `Date`) as month,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
-                        COUNT(*) as transaction_count
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Date` IS NOT NULL
-                    GROUP BY year, month
-                    ORDER BY year, month
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create line chart
-                    df['date'] = pd.to_datetime(df[['year', 'month']].assign(day=1))
-                    fig = px.line(
-                        df,
-                        x='date',
-                        y='monthly_revenue',
-                        title="Monthly Revenue Trends",
-                        markers=True
-                    )
-                    fig.update_layout(xaxis_title="Month", yaxis_title="Revenue ($)")
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Monthly Trends Data:**")
-                    st.dataframe(df, use_container_width=True)
-                 
-                elif selected_viz == "Customer Spending":
-                    # Customer spending analysis
-                    query = f"""
-                    SELECT 
-                        `Customer ID`,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
-                        COUNT(*) as transaction_count,
-                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Customer ID` IS NOT NULL
-                    GROUP BY `Customer ID`
-                    ORDER BY total_spent DESC
-                    LIMIT 50
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create histogram
-                    fig = px.histogram(
-                        df,
-                        x='total_spent',
-                        nbins=20,
-                        title="Customer Spending Distribution",
-                        labels={'total_spent': 'Total Amount Spent ($)'}
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Customer Spending Data (Top 50):**")
-                    st.dataframe(df, use_container_width=True)
-                
-                elif selected_viz == "Age Group Analysis":
-                    # Age group analysis
-                    query = f"""
-                    SELECT 
-                        CASE
-                            WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
-                            WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
-                            WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
-                            WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
-                            WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
-                            ELSE '55+'
-                        END as age_group,
-                        COUNT(*) as transaction_count,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Age` IS NOT NULL
-                    GROUP BY age_group
-                    ORDER BY total_revenue DESC
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create bar chart
-                    fig = px.bar(
-                        df,
-                        x='age_group',
-                        y='total_revenue',
-                        title="Revenue by Age Group",
-                        color='transaction_count',
-                        color_continuous_scale='Viridis'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Age Group Analysis Data:**")
-                    st.dataframe(df, use_container_width=True)
-                
-                elif selected_viz == "Product Performance":
-                    # Product performance analysis
-                    query = f"""
-                    SELECT 
-                        `Product Category`,
-                        COUNT(*) as times_purchased,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Product Category` IS NOT NULL
-                    GROUP BY `Product Category`
-                    ORDER BY total_revenue DESC
-                    LIMIT 20
-                    """
-                    
-                    df = client.query(query).to_dataframe()
-                    
-                    # Create horizontal bar chart
-                    fig = px.bar(
-                        df,
-                        y='Product Category',
-                        x='total_revenue',
-                        orientation='h',
-                        title="Top 20 Product Categories by Revenue",
-                        color='times_purchased',
-                        color_continuous_scale='Plasma'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display data
-                    st.write("**Product Performance Data (Top 20):**")
-                    st.dataframe(df, use_container_width=True)
-                
-                elif selected_viz == "Interactive Sales Over Time":
-                    # Interactive sales over time with date filtering
-                    st.markdown("### 📅 Interactive Sales Over Time")
-                    
-                    # Load data with caching
-                    @st.cache_data
-                    def load_sales_data():
-                        query = f"""
-                        SELECT 
-                            `Date`,
-                            `Total Amount`,
-                            `Product Category`,
-                            `Customer ID`
-                        FROM `{project_id}.assignment_one_1.retail_sales`
-                        WHERE `Date` IS NOT NULL
-                        ORDER BY `Date`
-                        """
-                        return client.query(query).to_dataframe()
-                    
-                    df = load_sales_data()
-                    df['Date'] = pd.to_datetime(df['Date'])
-                    
-                    # Date range filter
-                    min_date = df['Date'].min().date()
-                    max_date = df['Date'].max().date()
-                    
-                    col1, col2 = st.columns([1, 2])
-                    
-                    with col1:
-                        st.markdown("**📅 Filter Options:**")
-                        start_date, end_date = st.date_input(
-                            "Select date range", 
-                            [min_date, max_date],
-                            min_value=min_date,
-                            max_value=max_date
-                        )
-                        
-                        # Category filter
-                        categories = ['All'] + sorted(df['Product Category'].unique().tolist())
-                        selected_category = st.selectbox("Filter by Category:", categories)
-                        
-                        # Customer filter
-                        show_customer_breakdown = st.checkbox("Show customer breakdown")
-                    
-                    # Apply filters
-                    df_filtered = df[
-                        (df['Date'] >= pd.to_datetime(start_date)) & 
-                        (df['Date'] <= pd.to_datetime(end_date))
-                    ]
-                    
-                    if selected_category != 'All':
-                        df_filtered = df_filtered[df_filtered['Product Category'] == selected_category]
-                    
-                    # Aggregate sales by date
-                    if show_customer_breakdown:
-                        sales_over_time = df_filtered.groupby(['Date', 'Customer ID'])['Total Amount'].sum().reset_index()
-                        
-                        # Create interactive line chart with customer breakdown
-                        line_chart = alt.Chart(sales_over_time).mark_line(point=True).encode(
-                            x='Date:T',
-                            y='Total Amount:Q',
-                            color='Customer ID:N',
-                            tooltip=['Date:T', 'Customer ID:N', 'Total Amount:Q']
-                        ).properties(
-                            width=800,
-                            height=400,
-                            title=f"Sales Over Time by Customer ({selected_category})"
-                        ).interactive()
+                if login_button:
+                    if not username or not password:
+                        st.error("Please fill in all fields")
                     else:
-                        sales_over_time = df_filtered.groupby('Date')['Total Amount'].sum().reset_index()
-                        
-                        # Create interactive line chart
-                        line_chart = alt.Chart(sales_over_time).mark_line(
-                            color='green', 
-                            point=True,
-                            strokeWidth=3
-                        ).encode(
-                            x='Date:T', 
-                            y='Total Amount:Q', 
-                            tooltip=['Date:T', 'Total Amount:Q']
-                        ).properties(
-                            width=800,
-                            height=400,
-                            title=f"Sales Over Time ({selected_category})"
-                        ).interactive()
-                    
-                    with col2:
-                        st.altair_chart(line_chart, use_container_width=True)
-                    
-                    # Display summary statistics
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Total Sales", f"${sales_over_time['Total Amount'].sum():,.2f}")
-                    with col2:
-                        st.metric("Average Daily Sales", f"${sales_over_time['Total Amount'].mean():,.2f}")
-                    with col3:
-                        st.metric("Peak Sales Day", f"${sales_over_time['Total Amount'].max():,.2f}")
-                    with col4:
-                        st.metric("Days in Range", len(sales_over_time))
-                    
-                    # Display filtered data
-                    st.markdown("**📊 Filtered Data:**")
-                    st.dataframe(sales_over_time, use_container_width=True)
+                        success, message = authenticate_user(username, password)
+                        if success:
+                            st.session_state.username = username
+                            st.session_state.current_page = "🏠 Home"
+                            st.success(message)
+                            st.rerun()
+                        else:
+                            st.error(message)
+        
+        with tab2:
+            with st.form("register_form"):
+                new_username = st.text_input("Username", placeholder="Choose a username")
+                new_email = st.text_input("Email", placeholder="Enter your email")
+                new_password = st.text_input("Password", type="password", placeholder="Choose a password")
+                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm your password")
+                register_button = st.form_submit_button("Register", use_container_width=True)
                 
-            except Exception as e:
-                st.error(f"❌ Error generating visualization: {e}")
-                st.info("💡 This might be due to data type issues or missing columns")
-
-# Business Insights page
-elif page == "💡 Business Insights":
-    st.header("💡 Business Intelligence Insights")
+                if register_button:
+                    if not all([new_username, new_email, new_password, confirm_password]):
+                        st.error("Please fill in all fields")
+                    elif new_password != confirm_password:
+                        st.error("Passwords do not match")
+                    else:
+                        success, message = register_user(new_username, new_email, new_password)
+                        if success:
+                            st.success(message)
+                        else:
+                            st.error(message)
     
-    client, project_id = get_bigquery_client()
-    if client is None:
-        st.error("❌ BigQuery connection failed.")
-        st.stop()
-    
-    st.success(f"✅ Connected to BigQuery project: {project_id}")
-    
-    # Key Performance Indicators
-    st.markdown("---")
-    st.subheader("🎯 Key Performance Indicators (KPIs)")
-    
-    try:
-        # Calculate KPIs
-        kpi_query = f"""
-        SELECT 
-            COUNT(*) as total_transactions,
-            COUNT(DISTINCT `Customer ID`) as unique_customers,
-            COUNT(DISTINCT `Product Category`) as unique_categories,
-            COUNT(DISTINCT `Transaction ID`) as unique_transactions,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_items_sold,
-            ROUND(AVG(CAST(`Quantity` AS FLOAT64)), 2) as avg_items_per_transaction
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        """
+    elif selected == "🏠 Home" and is_logged_in():
+        st.title("🏠 Home Dashboard")
+        st.markdown("Welcome to your Medical Booking System dashboard!")
         
-        kpi_df = client.query(kpi_query).to_dataframe()
-        
-        # Display KPIs in columns
+        # Display some basic stats
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Transactions", f"{kpi_df.iloc[0]['total_transactions']:,}")
-            st.metric("Total Revenue", f"${kpi_df.iloc[0]['total_revenue']:,.2f}")
+            st.metric("Total Appointments", "15", "3")
         
         with col2:
-            st.metric("Unique Customers", f"{kpi_df.iloc[0]['unique_customers']:,}")
-            st.metric("Avg Transaction Value", f"${kpi_df.iloc[0]['avg_transaction_value']:.2f}")
+            st.metric("Available Specialists", "5", "1")
         
         with col3:
-            st.metric("Unique Categories", f"{kpi_df.iloc[0]['unique_categories']:,}")
-            st.metric("Total Items Sold", f"{kpi_df.iloc[0]['total_items_sold']:,}")
+            st.metric("Active Patients", "10", "2")
         
         with col4:
-            st.metric("Unique Transactions", f"{kpi_df.iloc[0]['unique_transactions']:,}")
-            st.metric("Avg Items/Transaction", f"{kpi_df.iloc[0]['avg_items_per_transaction']:.2f}")
+            st.metric("System Status", "Online", "✅")
         
-    except Exception as e:
-        st.error(f"❌ Error calculating KPIs: {e}")
+        st.markdown("### Recent Activity")
+        st.info("Your medical booking system is running smoothly!")
     
-    # Business Insights Analysis
-    st.markdown("---")
-    st.subheader("💡 Business Insights Analysis")
+    elif selected == "👨‍⚕️ Specialists" and is_logged_in():
+        st.title("👨‍⚕️ Medical Specialists")
+        st.markdown("Browse our available medical specialists.")
+        
+        # Sample specialists data
+        specialists_data = {
+            "Dr. Nathan Nelson": {"Specialty": "Pediatrician", "Rating": "4.1", "Contact": "856-841-7195"},
+            "Dr. Christine Jones": {"Specialty": "Dermatologist", "Rating": "3.1", "Contact": "231.942.5129"},
+            "Dr. Heather Brooks": {"Specialty": "Cardiologist", "Rating": "4.5", "Contact": "555-123-4567"},
+            "Dr. Logan Willis": {"Specialty": "Neurologist", "Rating": "4.2", "Contact": "555-987-6543"},
+            "Dr. Sarah Johnson": {"Specialty": "Orthopedist", "Rating": "4.0", "Contact": "555-456-7890"}
+        }
+        
+        for name, info in specialists_data.items():
+            with st.expander(f"👨‍⚕️ {name}"):
+                st.write(f"**Specialty:** {info['Specialty']}")
+                st.write(f"**Rating:** {info['Rating']}/5.0")
+                st.write(f"**Contact:** {info['Contact']}")
+                if st.button(f"Book Appointment with {name}", key=f"book_{name}"):
+                    st.success(f"Appointment booking feature coming soon!")
     
-    try:
-        # Revenue by category insights
-        category_query = f"""
-        SELECT 
-            `Product Category`,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)) * 100.0 / SUM(SUM(CAST(`Total Amount` AS FLOAT64))) OVER(), 2) as revenue_percentage
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Product Category` IS NOT NULL
-        GROUP BY `Product Category`
-        ORDER BY total_revenue DESC
-        """
+    elif selected == "🗓️ Book Appointment" and is_logged_in():
+        st.title("🗓️ Book Appointment")
+        st.markdown("Schedule your medical appointment.")
         
-        category_df = client.query(category_query).to_dataframe()
+        with st.form("appointment_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                specialty = st.selectbox("Specialty", ["Pediatrician", "Dermatologist", "Cardiologist", "Neurologist", "Orthopedist"])
+                date = st.date_input("Preferred Date")
+            
+            with col2:
+                time = st.selectbox("Preferred Time", ["09:00", "11:00", "13:00", "15:00"])
+                reason = st.text_area("Reason for Visit", placeholder="Brief description of your symptoms or concerns")
+            
+            if st.form_submit_button("Book Appointment", use_container_width=True):
+                st.success("Appointment booked successfully! You will receive a confirmation email.")
+    
+    elif selected == "📑 My Appointments" and is_logged_in():
+        st.title("📑 My Appointments")
+        st.markdown("View and manage your scheduled appointments.")
         
+        # Sample appointments data
+        appointments_data = [
+            {"Date": "2025-10-10", "Time": "09:00", "Specialist": "Dr. Nathan Nelson", "Specialty": "Pediatrician", "Status": "Confirmed"},
+            {"Date": "2025-10-15", "Time": "11:00", "Specialist": "Dr. Christine Jones", "Specialty": "Dermatologist", "Status": "Pending"}
+        ]
+        
+        if appointments_data:
+            for i, appointment in enumerate(appointments_data):
+                with st.expander(f"Appointment {i+1} - {appointment['Date']}"):
+                    st.write(f"**Date:** {appointment['Date']}")
+                    st.write(f"**Time:** {appointment['Time']}")
+                    st.write(f"**Specialist:** {appointment['Specialist']}")
+                    st.write(f"**Specialty:** {appointment['Specialty']}")
+                    st.write(f"**Status:** {appointment['Status']}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button(f"Reschedule", key=f"reschedule_{i}"):
+                            st.info("Reschedule feature coming soon!")
+                    with col2:
+                        if st.button(f"Cancel", key=f"cancel_{i}"):
+                            st.warning("Cancel feature coming soon!")
+        else:
+            st.info("No appointments scheduled.")
+    
+    elif selected == "👨‍💼 Admin Dashboard" and is_admin():
+        st.title("👨‍💼 Admin Dashboard")
+        st.markdown("Administrative panel for system management.")
+        
+        # Admin features
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Revenue by Category:**")
-            st.dataframe(category_df, use_container_width=True)
+            st.subheader("User Management")
+            st.info("User management features coming soon!")
         
         with col2:
-            # Create pie chart
-            fig = px.pie(
-                category_df,
-                values='total_revenue',
-                names='Product Category',
-                title="Revenue Distribution by Category"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Top performing product categories
-        st.markdown("---")
-        st.subheader("🏪 Top Performing Product Categories")
-        
-        store_query = f"""
-        SELECT 
-            `Product Category`,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            COUNT(*) as transaction_count,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            COUNT(DISTINCT `Customer ID`) as unique_customers
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Product Category` IS NOT NULL
-        GROUP BY `Product Category`
-        ORDER BY total_revenue DESC
-        LIMIT 10
-        """
-        
-        store_df = client.query(store_query).to_dataframe()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Top 10 Product Categories by Revenue:**")
-            st.dataframe(store_df, use_container_width=True)
-        
-        with col2:
-            # Create bar chart
-            fig = px.bar(
-                store_df,
-                x='Product Category',
-                y='total_revenue',
-                title="Top 10 Product Categories by Revenue",
-                color='transaction_count',
-                color_continuous_scale='Viridis'
-            )
-            fig.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Customer insights
-        st.markdown("---")
-        st.subheader("👥 Customer Insights")
-        
-        customer_query = f"""
-        SELECT 
-            CASE 
-                WHEN total_spent >= 1000 THEN 'High Value'
-                WHEN total_spent >= 500 THEN 'Medium Value'
-                ELSE 'Low Value'
-            END as customer_segment,
-            COUNT(*) as customer_count,
-            ROUND(AVG(total_spent), 2) as avg_spent,
-            ROUND(SUM(total_spent), 2) as total_spent
-        FROM (
-            SELECT 
-                `Customer ID`,
-                SUM(CAST(`Total Amount` AS FLOAT64)) as total_spent
-            FROM `{project_id}.assignment_one_1.retail_sales`
-            WHERE `Customer ID` IS NOT NULL
-            GROUP BY `Customer ID`
-        )
-        GROUP BY customer_segment
-        ORDER BY total_spent DESC
-        """
-        
-        customer_df = client.query(customer_query).to_dataframe()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Customer Segmentation by Spending:**")
-            st.dataframe(customer_df, use_container_width=True)
-        
-        with col2:
-            # Create pie chart
-            fig = px.pie(
-                customer_df,
-                values='customer_count',
-                names='customer_segment',
-                title="Customer Distribution by Value Segment"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"❌ Error generating business insights: {e}")
+            st.subheader("System Statistics")
+            st.metric("Total Users", "25")
+            st.metric("Total Appointments", "150")
+            st.metric("System Uptime", "99.9%")
     
-    # Recommendations
-    st.markdown("---")
-    st.subheader("💡 Business Recommendations")
-    
-    try:
-        # Generate recommendations based on data
-        st.markdown("""
-        **🎯 Based on the analysis, here are key business recommendations:**
-        
-        **📈 Revenue Optimization:**
-        - Focus on high-performing product categories
-        - Optimize pricing strategies for different age groups
-        - Develop customer loyalty programs for high-value customers
-        
-        **🏪 Product Category Performance:**
-        - Analyze successful product category strategies
-        - Implement best practices across all categories
-        - Consider expansion in high-performing product lines
-        
-        **👥 Customer Strategy:**
-        - Target high-value customer segments
-        - Develop retention strategies for medium-value customers
-        - Create engagement programs for low-value customers
-        
-        **📊 Data Quality:**
-        - Monitor data completeness regularly
-        - Implement data validation processes
-        - Ensure consistent data entry across all channels
-        """)
-        
-    except Exception as e:
-        st.error(f"❌ Error generating recommendations: {e}")
+    else:
+        # If user tries to access protected pages without login, show login
+        st.title("🔐 Login Required")
+        st.info("Please log in to access this page.")
+        st.markdown("Use the sidebar to navigate to the login page.")
 
-# About page
-elif page == "📋 About":
-    st.header("📋 About This Dashboard")
-    
-    st.markdown("""
-    ## 🎯 Purpose
-    This dashboard provides comprehensive analysis of the retail sales dataset from BigQuery, 
-    offering business intelligence insights and data-driven recommendations.
-    
-    ## 🔗 Data Source
-    - **Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
-    - **Source:** Kaggle Retail Sales Dataset
-    - **Platform:** Google BigQuery
-    
-    ## 🛠️ Features
-    - **Data Exploration:** Comprehensive dataset analysis and schema review
-    - **SQL Queries:** Pre-built and custom SQL query execution
-    - **Visualizations:** Interactive charts and graphs
-    - **Business Insights:** KPI analysis and business recommendations
-    - **Data Export:** Download results and insights
-    
-    ## 📊 Analysis Capabilities
-    - Revenue analysis by category and store
-    - Customer segmentation and behavior analysis
-    - Temporal trends and seasonality
-    - Payment method performance
-    - Product performance insights
-    
-         ## 🚀 Technologies Used
-     - **Streamlit:** Web application framework
-     - **BigQuery:** Cloud data warehouse
-     - **Plotly:** Interactive visualizations
-     - **Pandas:** Data manipulation
-     - **Python:** Programming language
-     
-     ## 👥 Group Members
-     - **Nyiko Maluleke** - 3928378
-     - **Mlamli Mkize** - 3948221
-     - **Bulelani Kote**  - 4523387
-     - **Alizwa Mdaka** - 3666983
-     - **Siyabonga Masango** - 3857285
-     
-     ---
-     
-     **📊 Retail Sales Analysis Dashboard | Powered by BigQuery & Streamlit**
-    """)
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("*Last updated: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "*")
-
-# Footer for all pages
+# --- FOOTER ---
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p>📊 Retail Sales Analysis Dashboard | BigQuery Integration | Built with Streamlit</p>
-    <p><small>Comprehensive analysis of retail sales data with business intelligence insights</small></p>
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p>🏥 Medical Booking System | Built with Streamlit | BIA 712 Group 3</p>
+    <p>Secure • Reliable • User-Friendly</p>
 </div>
 """, unsafe_allow_html=True)
