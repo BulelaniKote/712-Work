@@ -456,13 +456,26 @@ def get_medical_specialists():
         return []
     
     try:
-        query = f"""
-        SELECT * FROM `{project_id}.assignment_one_1.specialists`
-        ORDER BY FirstName, LastName
-        """
-        
-        result = client.query(query).to_dataframe()
-        return result.to_dict('records')
+        # Try with trailing space first (like appointments table)
+        try:
+            query = f"""
+            SELECT * FROM `{project_id}.assignment_one_1.specialists `
+            ORDER BY FirstName, LastName
+            """
+            result = client.query(query).to_dataframe()
+            # Debug: Show column names
+            print(f"Specialists columns (with space): {list(result.columns)}")
+            return result.to_dict('records')
+        except:
+            # If that fails, try without trailing space
+            query = f"""
+            SELECT * FROM `{project_id}.assignment_one_1.specialists`
+            ORDER BY FirstName, LastName
+            """
+            result = client.query(query).to_dataframe()
+            # Debug: Show column names
+            print(f"Specialists columns (no space): {list(result.columns)}")
+            return result.to_dict('records')
         
     except Exception as e:
         st.error(f"Error fetching specialists: {e}")
