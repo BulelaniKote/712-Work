@@ -411,7 +411,7 @@ def app():
                                        title="Specialists by Specialty",
                                        color=specialty_counts.values,
                                        color_continuous_scale='Greens')
-                            fig.update_xaxis(tickangle=45)
+                            fig.update_layout(xaxis_tickangle=45)
                             st.plotly_chart(fig, use_container_width=True)
                         else:
                             st.info("No specialty data available")
@@ -423,7 +423,7 @@ def app():
                             if not specialty_counts.empty:
                                 fig = px.bar(x=specialty_counts.index, y=specialty_counts.values,
                                            title="Specialists by Specialty")
-                                fig.update_xaxis(tickangle=45)
+                                fig.update_layout(xaxis_tickangle=45)
                                 st.plotly_chart(fig, use_container_width=True)
                         except:
                             st.info("Unable to create specialty visualization")
@@ -599,8 +599,7 @@ def app():
                         fig = px.bar(avg_ratings_clean, x='FullName', y='Rating_Numeric', 
                                    title="Average Ratings Per Specialist",
                                    color='Rating_Numeric', color_continuous_scale='RdYlGn')
-                        fig.update_xaxis(tickangle=45)
-                        fig.update_layout(yaxis_title="Average Rating")
+                        fig.update_layout(xaxis_tickangle=45, yaxis_title="Average Rating")
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("No valid rating data available for visualization")
@@ -610,7 +609,7 @@ def app():
                     try:
                         fig = px.bar(avg_ratings, x='FullName', y='Rating', 
                                    title="Average Ratings Per Specialist")
-                        fig.update_xaxis(tickangle=45)
+                        fig.update_layout(xaxis_tickangle=45)
                         st.plotly_chart(fig, use_container_width=True)
                     except:
                         st.info("Unable to create ratings visualization")
@@ -763,7 +762,7 @@ def app():
                     fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
                                title="Top 5 Most Booked Specialists",
                                color='Total_Bookings', color_continuous_scale='Greens')
-                    fig.update_xaxis(tickangle=45)
+                    fig.update_layout(xaxis_tickangle=45)
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
                     st.error(f"Error creating top specialists chart: {str(e)}")
@@ -771,7 +770,7 @@ def app():
                     try:
                         fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
                                    title="Top 5 Most Booked Specialists")
-                        fig.update_xaxis(tickangle=45)
+                        fig.update_layout(xaxis_tickangle=45)
                         st.plotly_chart(fig, use_container_width=True)
                     except:
                         st.info("Unable to create top specialists visualization")
