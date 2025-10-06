@@ -33,7 +33,7 @@ with st.sidebar:
         # Set icons based on menu items
         if is_admin():
             icons = ["house", "person-badge", "calendar-plus", "journal-text", "gear", "cloud-upload"]
-    else:
+        else:
             icons = ["house", "person-badge", "calendar-plus", "journal-text"]
         
         selected = option_menu(
@@ -48,7 +48,7 @@ with st.sidebar:
         # Update current page when selection changes
         if selected != st.session_state.get('current_page', "🏠 Home"):
             st.session_state.current_page = selected
-        else:
+    else:
         # Navigation menu for non-logged in users
         selected = option_menu(
             "📋 Navigation",
@@ -83,7 +83,7 @@ with st.container():
     elif selected == "📊 Upload Data" and is_admin():
         from modules.data_upload import app as upload_app
         upload_app()
-        else:
+    else:
         # If user tries to access protected pages without login, show login
         from modules.login import app as login_app
         login_app()
