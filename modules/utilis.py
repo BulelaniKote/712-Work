@@ -4,16 +4,45 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
+from google.cloud import bigquery
+from google.oauth2 import service_account
 
-# User data file path - using the existing data folder
-USERS_FILE = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
-
-def init_users_file():
-    """Initialize users file if it doesn't exist"""
-    if not os.path.exists(USERS_FILE):
-        os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
-        with open(USERS_FILE, 'w') as f:
-            json.dump({}, f)
+# BigQuery connection setup
+@st.cache_resource
+def get_bigquery_client():
+    """Initialize BigQuery client with service account credentials from Streamlit secrets"""
+    try:
+        # Always use Streamlit secrets (both local and deployed)
+        if 'gcp_service_account' in st.secrets:
+            try:
+                # Create credentials from secrets
+                credentials = service_account.Credentials.from_service_account_info(
+                    st.secrets["gcp_service_account"],
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+                
+                client = bigquery.Client(
+                    credentials=credentials,
+                    project=credentials.project_id
+                )
+                
+                return client, credentials.project_id
+                
+            except Exception as e:
+                st.error(f"Error creating BigQuery client from secrets: {e}")
+                st.info("Please check your Streamlit Cloud secrets configuration")
+                return None, None
+                
+        else:
+            st.error("BigQuery credentials not found in Streamlit secrets")
+            st.info("Please add your GCP service account credentials to Streamlit Cloud secrets")
+            st.info("Go to your app settings → Secrets and add the gcp_service_account section")
+            return None, None
+            
+    except Exception as e:
+        st.error(f"Error connecting to BigQuery: {e}")
+        st.info("Check your Streamlit Cloud secrets configuration")
+        return None, None
 
 def hash_password(password):
     """Hash password using SHA-256"""
@@ -24,48 +53,102 @@ def verify_password(password, hashed):
     return hash_password(password) == hashed
 
 def register_user(username, email, password):
-    """Register a new user"""
-    init_users_file()
-    
-    with open(USERS_FILE, 'r') as f:
-        users = json.load(f)
-    
-    # Check if user already exists
-    if username in users:
-        return False, "Username already exists"
-    
-    # Check if email already exists
-    for user_data in users.values():
-        if user_data.get('email') == email:
-            return False, "Email already registered"
-    
-    # Add new user
-    users[username] = {
-        'email': email,
-        'password': hash_password(password),
-        'created_at': datetime.now().isoformat(),
-        'appointments': []
-    }
-    
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f, indent=2)
-    
-    return True, "User registered successfully"
-
-def authenticate_user(username, password):
-    """Authenticate user login"""
-    init_users_file()
+    """Register a new user in BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False, "Database connection failed"
     
     try:
-        with open(USERS_FILE, 'r') as f:
-            users = json.load(f)
+        # Check if user already exists
+        query = f"""
+        SELECT username FROM `{project_id}.medical_booking_system.users`
+        WHERE username = @username
+        """
         
-        if username in users and verify_password(password, users[username]['password']):
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", username)
+            ]
+        )
+        
+        result = client.query(query, job_config=job_config).to_dataframe()
+        
+        if not result.empty:
+            return False, "Username already exists"
+        
+        # Check if email already exists
+        query = f"""
+        SELECT email FROM `{project_id}.medical_booking_system.users`
+        WHERE email = @email
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("email", "STRING", email)
+            ]
+        )
+        
+        result = client.query(query, job_config=job_config).to_dataframe()
+        
+        if not result.empty:
+            return False, "Email already registered"
+        
+        # Insert new user
+        query = f"""
+        INSERT INTO `{project_id}.medical_booking_system.users`
+        (username, email, password, created_at, role)
+        VALUES (@username, @email, @password, @created_at, @role)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", username),
+                bigquery.ScalarQueryParameter("email", "STRING", email),
+                bigquery.ScalarQueryParameter("password", "STRING", hash_password(password)),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now()),
+                bigquery.ScalarQueryParameter("role", "STRING", "patient")
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
+        
+        return True, "User registered successfully"
+        
+    except Exception as e:
+        return False, f"Registration failed: {str(e)}"
+
+def authenticate_user(username, password):
+    """Authenticate user login from BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False, "Database connection failed"
+    
+    try:
+        query = f"""
+        SELECT username, password FROM `{project_id}.medical_booking_system.users`
+        WHERE username = @username
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", username)
+            ]
+        )
+        
+        result = client.query(query, job_config=job_config).to_dataframe()
+        
+        if result.empty:
+            return False, "Invalid username or password"
+        
+        stored_password = result.iloc[0]['password']
+        
+        if verify_password(password, stored_password):
             return True, "Login successful"
         else:
             return False, "Invalid username or password"
-    except FileNotFoundError:
-        return False, "No users found. Please sign up first."
+            
+    except Exception as e:
+        return False, f"Authentication failed: {str(e)}"
 
 def is_logged_in():
     """Check if user is logged in"""
@@ -78,83 +161,205 @@ def logout():
     st.rerun()
 
 def get_current_user_data():
-    """Get current user's data"""
+    """Get current user's data from BigQuery"""
     if not is_logged_in():
         return None
     
-    init_users_file()
-    try:
-        with open(USERS_FILE, 'r') as f:
-            users = json.load(f)
-        return users.get(st.session_state.username, None)
-    except FileNotFoundError:
+    client, project_id = get_bigquery_client()
+    if not client:
         return None
-
-def save_user_data(user_data):
-    """Save updated user data"""
-    if not is_logged_in():
-        return False
     
-    init_users_file()
     try:
-        with open(USERS_FILE, 'r') as f:
-            users = json.load(f)
+        query = f"""
+        SELECT username, email, created_at, role FROM `{project_id}.medical_booking_system.users`
+        WHERE username = @username
+        """
         
-        users[st.session_state.username] = user_data
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", st.session_state.username)
+            ]
+        )
         
-        with open(USERS_FILE, 'w') as f:
-            json.dump(users, f, indent=2)
-        return True
-    except Exception as e:
-        st.error(f"Error saving user data: {e}")
-        return False
-
-def add_appointment(appointment_data):
-    """Add appointment to current user's data"""
-    user_data = get_current_user_data()
-    if user_data:
-        if 'appointments' not in user_data:
+        result = client.query(query, job_config=job_config).to_dataframe()
+        
+        if result.empty:
+            return None
+        
+        user_data = result.iloc[0].to_dict()
+        
+        # Get user's appointments
+        appointments_query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.appointments`
+        WHERE username = @username
+        ORDER BY created_at DESC
+        """
+        
+        appointments_job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", st.session_state.username)
+            ]
+        )
+        
+        appointments_result = client.query(appointments_query, appointments_job_config).to_dataframe()
+        
+        if not appointments_result.empty:
+            user_data['appointments'] = appointments_result.to_dict('records')
+        else:
             user_data['appointments'] = []
         
-        user_data['appointments'].append({
-            **appointment_data,
-            'created_at': datetime.now().isoformat()
-        })
+        return user_data
         
-        return save_user_data(user_data)
-    return False
+    except Exception as e:
+        st.error(f"Error fetching user data: {e}")
+        return None
+
+def add_appointment(appointment_data):
+    """Add appointment to BigQuery"""
+    if not is_logged_in():
+        return False
+    
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        query = f"""
+        INSERT INTO `{project_id}.medical_booking_system.appointments`
+        (username, name, email, specialty, date, time, reason, status, created_at)
+        VALUES (@username, @name, @email, @specialty, @date, @time, @reason, @status, @created_at)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", st.session_state.username),
+                bigquery.ScalarQueryParameter("name", "STRING", appointment_data.get('name', '')),
+                bigquery.ScalarQueryParameter("email", "STRING", appointment_data.get('email', '')),
+                bigquery.ScalarQueryParameter("specialty", "STRING", appointment_data.get('specialty', '')),
+                bigquery.ScalarQueryParameter("date", "DATE", appointment_data.get('date', '')),
+                bigquery.ScalarQueryParameter("time", "TIME", appointment_data.get('time', '')),
+                bigquery.ScalarQueryParameter("reason", "STRING", appointment_data.get('reason', '')),
+                bigquery.ScalarQueryParameter("status", "STRING", appointment_data.get('status', 'confirmed')),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now())
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
+        return True
+        
+    except Exception as e:
+        st.error(f"Error adding appointment: {e}")
+        return False
 
 def is_admin():
     """Check if current user is an admin"""
-    return is_logged_in() and st.session_state.get('username') == 'admin'
+    if not is_logged_in():
+        return False
+    
+    user_data = get_current_user_data()
+    return user_data and user_data.get('role') == 'admin'
 
 def get_all_users():
-    """Get all users data for admin purposes"""
-    init_users_file()
+    """Get all users data for admin purposes from BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return {}
+    
     try:
-        with open(USERS_FILE, 'r') as f:
-            users = json.load(f)
+        query = f"""
+        SELECT username, email, created_at, role FROM `{project_id}.medical_booking_system.users`
+        ORDER BY created_at DESC
+        """
+        
+        result = client.query(query).to_dataframe()
+        
+        if result.empty:
+            return {}
+        
+        users = {}
+        for _, row in result.iterrows():
+            users[row['username']] = {
+                'email': row['email'],
+                'created_at': row['created_at'].isoformat() if pd.notna(row['created_at']) else '',
+                'role': row['role'],
+                'appointments': []
+            }
+        
+        # Get appointments for each user
+        appointments_query = f"""
+        SELECT username, name, email, specialty, date, time, reason, status, created_at
+        FROM `{project_id}.medical_booking_system.appointments`
+        ORDER BY created_at DESC
+        """
+        
+        appointments_result = client.query(appointments_query).to_dataframe()
+        
+        if not appointments_result.empty:
+            for _, appointment in appointments_result.iterrows():
+                username = appointment['username']
+                if username in users:
+                    if 'appointments' not in users[username]:
+                        users[username]['appointments'] = []
+                    
+                    users[username]['appointments'].append({
+                        'name': appointment['name'],
+                        'email': appointment['email'],
+                        'specialty': appointment['specialty'],
+                        'date': str(appointment['date']) if pd.notna(appointment['date']) else '',
+                        'time': str(appointment['time']) if pd.notna(appointment['time']) else '',
+                        'reason': appointment['reason'],
+                        'status': appointment['status'],
+                        'created_at': appointment['created_at'].isoformat() if pd.notna(appointment['created_at']) else ''
+                    })
+        
         return users
-    except FileNotFoundError:
+        
+    except Exception as e:
+        st.error(f"Error fetching all users: {e}")
         return {}
 
 def get_all_appointments():
-    """Get all appointments from all users for admin analytics"""
-    users = get_all_users()
-    all_appointments = []
+    """Get all appointments from all users for admin analytics from BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
     
-    for username, user_data in users.items():
-        if 'appointments' in user_data:
-            for appointment in user_data['appointments']:
-                appointment_with_user = appointment.copy()
-                appointment_with_user['username'] = username
-                appointment_with_user['user_email'] = user_data.get('email', 'N/A')
-                all_appointments.append(appointment_with_user)
-    
-    return all_appointments
+    try:
+        query = f"""
+        SELECT a.*, u.email as user_email
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.users` u ON a.username = u.username
+        ORDER BY a.created_at DESC
+        """
+        
+        result = client.query(query).to_dataframe()
+        
+        if result.empty:
+            return []
+        
+        appointments = []
+        for _, row in result.iterrows():
+            appointments.append({
+                'username': row['username'],
+                'user_email': row['user_email'],
+                'name': row['name'],
+                'email': row['email'],
+                'specialty': row['specialty'],
+                'date': str(row['date']) if pd.notna(row['date']) else '',
+                'time': str(row['time']) if pd.notna(row['time']) else '',
+                'reason': row['reason'],
+                'status': row['status'],
+                'created_at': row['created_at'].isoformat() if pd.notna(row['created_at']) else ''
+            })
+        
+        return appointments
+        
+    except Exception as e:
+        st.error(f"Error fetching all appointments: {e}")
+        return []
 
 def get_specialist_performance():
-    """Get specialist performance data"""
+    """Get specialist performance data from BigQuery"""
     appointments = get_all_appointments()
     specialist_stats = {}
     
@@ -198,23 +403,43 @@ def get_specialist_performance():
     return specialist_stats
 
 def create_admin_user():
-    """Create default admin user if it doesn't exist"""
-    init_users_file()
+    """Create default admin user if it doesn't exist in BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
     
-    with open(USERS_FILE, 'r') as f:
-        users = json.load(f)
-    
-    if 'admin' not in users:
-        users['admin'] = {
-            'email': 'admin@medicalcenter.com',
-            'password': hash_password('admin123'),
-            'created_at': datetime.now().isoformat(),
-            'appointments': [],
-            'role': 'admin'
-        }
+    try:
+        # Check if admin user exists
+        query = f"""
+        SELECT username FROM `{project_id}.medical_booking_system.users`
+        WHERE username = 'admin'
+        """
         
-        with open(USERS_FILE, 'w') as f:
-            json.dump(users, f, indent=2)
+        result = client.query(query).to_dataframe()
         
+        if not result.empty:
+            return False  # Admin already exists
+        
+        # Create admin user
+        query = f"""
+        INSERT INTO `{project_id}.medical_booking_system.users`
+        (username, email, password, created_at, role)
+        VALUES (@username, @email, @password, @created_at, @role)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", "admin"),
+                bigquery.ScalarQueryParameter("email", "STRING", "admin@medicalcenter.com"),
+                bigquery.ScalarQueryParameter("password", "STRING", hash_password("admin123")),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now()),
+                bigquery.ScalarQueryParameter("role", "STRING", "admin")
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
         return True
-    return False
+        
+    except Exception as e:
+        st.error(f"Error creating admin user: {e}")
+        return False
