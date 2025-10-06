@@ -377,19 +377,30 @@ def app():
                 
                 # Rating distribution
                 if 'Rating' in specialists_df.columns:
-                    # Convert Rating to numeric and handle any non-numeric values
-                    specialists_df['Rating_Numeric'] = pd.to_numeric(specialists_df['Rating'], errors='coerce')
-                    # Remove any NaN values
-                    rating_data = specialists_df.dropna(subset=['Rating_Numeric'])
-                    
-                    if not rating_data.empty:
-                        fig = px.histogram(rating_data, x='Rating_Numeric', nbins=10,
-                                         title="Specialist Rating Distribution",
-                                         color='Rating_Numeric', color_continuous_scale='Blues')
-                        fig.update_layout(xaxis_title="Rating", yaxis_title="Count")
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("No valid rating data available for visualization")
+                    try:
+                        # Convert Rating to numeric and handle any non-numeric values
+                        specialists_df['Rating_Numeric'] = pd.to_numeric(specialists_df['Rating'], errors='coerce')
+                        # Remove any NaN values
+                        rating_data = specialists_df.dropna(subset=['Rating_Numeric'])
+                        
+                        if not rating_data.empty and len(rating_data) > 0:
+                            # Ensure we have valid numeric data
+                            rating_data = rating_data[rating_data['Rating_Numeric'].notna()]
+                            rating_data = rating_data[rating_data['Rating_Numeric'] >= 0]  # Remove negative ratings
+                            
+                            if not rating_data.empty:
+                                # Create a simple histogram without color scaling to avoid issues
+                                fig = px.histogram(rating_data, x='Rating_Numeric', nbins=10,
+                                                 title="Specialist Rating Distribution")
+                                fig.update_layout(xaxis_title="Rating", yaxis_title="Count")
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.info("No valid rating data available for visualization")
+                        else:
+                            st.info("No rating data available")
+                    except Exception as e:
+                        st.error(f"Error creating rating distribution chart: {str(e)}")
+                        st.info("Rating data may be in an unexpected format")
                 
                 # Specialty distribution
                 if 'Specialty' in specialists_df.columns:
@@ -562,14 +573,31 @@ def app():
                 st.dataframe(avg_ratings[['FullName', 'Specialty', 'Rating']].round(2), use_container_width=True)
                 
                 # Visualization
-                # Convert Rating to numeric for proper color scaling
-                avg_ratings['Rating_Numeric'] = pd.to_numeric(avg_ratings['Rating'], errors='coerce')
-                fig = px.bar(avg_ratings, x='FullName', y='Rating_Numeric', 
-                           title="Average Ratings Per Specialist",
-                           color='Rating_Numeric', color_continuous_scale='RdYlGn')
-                fig.update_xaxis(tickangle=45)
-                fig.update_layout(yaxis_title="Average Rating")
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    # Convert Rating to numeric for proper color scaling
+                    avg_ratings['Rating_Numeric'] = pd.to_numeric(avg_ratings['Rating'], errors='coerce')
+                    # Remove any NaN values
+                    avg_ratings_clean = avg_ratings.dropna(subset=['Rating_Numeric'])
+                    
+                    if not avg_ratings_clean.empty:
+                        fig = px.bar(avg_ratings_clean, x='FullName', y='Rating_Numeric', 
+                                   title="Average Ratings Per Specialist",
+                                   color='Rating_Numeric', color_continuous_scale='RdYlGn')
+                        fig.update_xaxis(tickangle=45)
+                        fig.update_layout(yaxis_title="Average Rating")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No valid rating data available for visualization")
+                except Exception as e:
+                    st.error(f"Error creating ratings chart: {str(e)}")
+                    # Fallback: simple bar chart without color scaling
+                    try:
+                        fig = px.bar(avg_ratings, x='FullName', y='Rating', 
+                                   title="Average Ratings Per Specialist")
+                        fig.update_xaxis(tickangle=45)
+                        st.plotly_chart(fig, use_container_width=True)
+                    except:
+                        st.info("Unable to create ratings visualization")
         
         st.divider()
         
