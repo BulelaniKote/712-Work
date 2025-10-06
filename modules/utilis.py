@@ -55,7 +55,7 @@ def verify_password(password, hashed):
 def register_user(username, email, password):
     """Register a new user using JSON file"""
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load existing users
         if os.path.exists(users_file_path):
@@ -93,7 +93,7 @@ def register_user(username, email, password):
 def authenticate_user(username, password):
     """Authenticate user login from JSON file"""
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load users data
         if not os.path.exists(users_file_path):
@@ -133,7 +133,7 @@ def get_current_user_data():
         return None
     
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load users data
         if not os.path.exists(users_file_path):
@@ -168,7 +168,7 @@ def add_appointment(appointment_data):
         return False
     
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load existing users
         if os.path.exists(users_file_path):
@@ -224,7 +224,7 @@ def is_admin():
 def get_all_users():
     """Get all users data for admin purposes from JSON file"""
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load users data
         if not os.path.exists(users_file_path):
@@ -252,7 +252,7 @@ def get_all_users():
 def get_all_appointments():
     """Get all appointments from all users for admin analytics from JSON file"""
     try:
-        users_file_path = "MedicalBookingApp/med/MedicalBookingApp/data/users.json"
+        users_file_path = "users.json"
         
         # Load users data
         if not os.path.exists(users_file_path):
