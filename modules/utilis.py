@@ -494,7 +494,23 @@ def get_medical_appointments():
         return []
     
     try:
-        query = f"""
+        # First, let's try a simple query to check if the table exists
+        simple_query = f"""
+        SELECT * FROM `{project_id}.assignment_one_1.appointments`
+        LIMIT 5
+        """
+        
+        st.info(f"Querying: {project_id}.assignment_one_1.appointments")
+        result = client.query(simple_query).to_dataframe()
+        
+        if result.empty:
+            st.warning("Appointments table exists but is empty")
+            return []
+        
+        st.success(f"Found {len(result)} appointments in BigQuery")
+        
+        # Now try the full query with joins
+        full_query = f"""
         SELECT 
             a.*,
             p.FirstName as PatientFirstName,
@@ -517,11 +533,22 @@ def get_medical_appointments():
         ORDER BY a.DateKey, t.StartTime
         """
         
-        result = client.query(query).to_dataframe()
-        return result.to_dict('records')
+        full_result = client.query(full_query).to_dataframe()
+        return full_result.to_dict('records')
         
     except Exception as e:
         st.error(f"Error fetching medical appointments: {e}")
+        st.info("Trying to list available tables...")
+        
+        # Try to list tables to debug
+        try:
+            dataset_ref = client.dataset("assignment_one_1")
+            tables = list(client.list_tables(dataset_ref))
+            table_names = [table.table_id for table in tables]
+            st.info(f"Available tables in assignment_one_1: {table_names}")
+        except Exception as list_error:
+            st.error(f"Could not list tables: {list_error}")
+        
         return []
 
 def get_medical_clients():
