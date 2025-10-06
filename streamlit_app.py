@@ -13,8 +13,8 @@ from google.oauth2 import service_account
 
 # Page configuration
 st.set_page_config(
-    page_title="Retail Sales Analysis Dashboard",
-    page_icon="📊",
+    page_title="Medical Booking System Dashboard",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -54,7 +54,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Title and header
-st.markdown('<h1 class="main-header">📊 Retail Sales Analysis Dashboard</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🏥 Medical Booking System Dashboard</h1>', unsafe_allow_html=True)
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
@@ -102,9 +102,9 @@ def get_bigquery_client():
 
 # Home page
 if page == "🏠 Home":
-    st.markdown("## 🎯 Retail Sales Dataset Analysis")
-    st.markdown("**Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`")
-    st.markdown("**Source:** Kaggle Retail Sales Dataset")
+    st.markdown("## 🎯 Medical Booking System Analysis")
+    st.markdown("**Dataset:** `moonlit-autumn-468306-p6.medical_booking_system`")
+    st.markdown("**Source:** Medical Booking System Data")
     
     # BigQuery Status
     client, project_id = get_bigquery_client()
@@ -122,18 +122,19 @@ if page == "🏠 Home":
             # Get comprehensive dataset metrics
             overview_query = f"""
             SELECT 
-                COUNT(*) as number_of_transactions,
-                COUNT(DISTINCT `Customer ID`) as number_of_customers,
-                ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                COUNT(DISTINCT `Product Category`) as product_types,
-                ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_items_sold
-            FROM `{project_id}.assignment_one_1.retail_sales`
+                COUNT(*) as number_of_appointments,
+                COUNT(DISTINCT `PatientID`) as number_of_patients,
+                COUNT(DISTINCT `SpecialistID`) as number_of_specialists,
+                COUNT(DISTINCT `Specialty`) as specialty_types,
+                COUNT(DISTINCT `Status`) as appointment_statuses
+            FROM `{project_id}.medical_booking_system.appointments` a
+            JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
             """
             
             overview_df = client.query(overview_query).to_dataframe()
             
             # Get table info for number of columns
-            table_ref = f"{project_id}.assignment_one_1.retail_sales"
+            table_ref = f"{project_id}.medical_booking_system.appointments"
             table = client.get_table(table_ref)
             
             # Display metrics in a clean layout matching the screenshot
@@ -141,8 +142,8 @@ if page == "🏠 Home":
             
             with col1:
                 st.metric(
-                    label="Number of Transactions", 
-                    value=f"{overview_df.iloc[0]['number_of_transactions']:,}"
+                    label="Number of Appointments", 
+                    value=f"{overview_df.iloc[0]['number_of_appointments']:,}"
                 )
                 st.metric(
                     label="Number of Columns", 
@@ -151,29 +152,29 @@ if page == "🏠 Home":
             
             with col2:
                 st.metric(
-                    label="Total Number of Customers", 
-                    value=f"{overview_df.iloc[0]['number_of_customers']:,}"
+                    label="Total Number of Patients", 
+                    value=f"{overview_df.iloc[0]['number_of_patients']:,}"
                 )
                 st.metric(
-                    label="Kind of Products Being Sold", 
-                    value=f"{overview_df.iloc[0]['product_types']:,}"
+                    label="Number of Specialists", 
+                    value=f"{overview_df.iloc[0]['number_of_specialists']:,}"
                 )
             
             with col3:
                 st.metric(
-                    label="Total Revenue", 
-                    value=f"${overview_df.iloc[0]['total_revenue']:,.0f}"
+                    label="Specialty Types", 
+                    value=f"{overview_df.iloc[0]['specialty_types']:,}"
                 )
                 st.metric(
-                    label="Total Items Sold", 
-                    value=f"{overview_df.iloc[0]['total_items_sold']:,}"
+                    label="Appointment Statuses", 
+                    value=f"{overview_df.iloc[0]['appointment_statuses']:,}"
                 )
             
         except Exception as e:
             st.error(f"❌ Error fetching dataset overview: {e}")
             # Fallback to basic table info if query fails
             try:
-                table_ref = f"{project_id}.assignment_one_1.retail_sales"
+                table_ref = f"{project_id}.medical_booking_system.appointments"
                 table = client.get_table(table_ref)
                 
                 col1, col2, col3 = st.columns(3)
@@ -195,29 +196,29 @@ if page == "🏠 Home":
         with col1:
             st.markdown("""
             **📊 Data Exploration:**
-            - Understand dataset structure and schema
+            - Understand medical booking system structure
             - Identify data quality issues
-            - Explore key business metrics
+            - Explore key healthcare metrics
             
             **🔍 Business Analysis:**
-            - Sales performance by category
-            - Store performance analysis
-            - Customer behavior insights
+            - Appointment booking patterns
+            - Specialist performance analysis
+            - Patient behavior insights
             - Temporal trends and seasonality
             """)
         
         with col2:
             st.markdown("""
             **📈 Advanced Analytics:**
-            - Revenue optimization opportunities
-            - Customer segmentation
-            - Product performance analysis
-            - Payment method insights
+            - Appointment optimization opportunities
+            - Patient segmentation
+            - Specialist utilization analysis
+            - Time slot performance insights
             
             **💡 Actionable Insights:**
-            - Data-driven recommendations
+            - Healthcare service recommendations
             - Performance improvement areas
-            - Business growth opportunities
+            - System efficiency opportunities
             """)
 
 # Dataset Analysis page
@@ -236,7 +237,7 @@ elif page == "📊 Dataset Analysis":
     st.subheader("🏗️ Table Schema Analysis")
     
     try:
-        table_ref = f"{project_id}.assignment_one_1.retail_sales"
+        table_ref = f"{project_id}.medical_booking_system.appointments"
         table = client.get_table(table_ref)
         
         # Display schema
@@ -276,7 +277,7 @@ elif page == "📊 Dataset Analysis":
             COUNT(*) as total_rows,
             COUNTIF(value IS NULL) as null_count,
             ROUND(COUNTIF(value IS NULL) * 100.0 / COUNT(*), 2) as null_percentage
-        FROM `{project_id}.assignment_one_1.retail_sales`,
+        FROM `{project_id}.medical_booking_system.appointments`,
         UNNEST([
             STRUCT('Date' as column_name, CAST(`Date` AS STRING) as value),
             STRUCT('Product Category' as column_name, `Product Category` as value),
@@ -319,7 +320,7 @@ elif page == "📊 Dataset Analysis":
     st.subheader("📋 Sample Data")
     
     try:
-        sample_query = f"SELECT * FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 20"
+        sample_query = f"SELECT * FROM `{project_id}.medical_booking_system.appointments` LIMIT 20"
         sample_df = client.query(sample_query).to_dataframe()
         
         st.write("**First 20 Records:**")
@@ -355,87 +356,92 @@ elif page == "🔍 SQL Queries":
     query_templates = {
         "Basic Overview": f"""
         SELECT 
-            COUNT(*) as total_transactions,
-            COUNT(DISTINCT `Customer ID`) as unique_customers,
-            COUNT(DISTINCT `Product Category`) as unique_categories,
-            COUNT(DISTINCT `Transaction ID`) as unique_transactions,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue
-        FROM `{project_id}.assignment_one_1.retail_sales`
+            COUNT(*) as total_appointments,
+            COUNT(DISTINCT `PatientID`) as unique_patients,
+            COUNT(DISTINCT `SpecialistID`) as unique_specialists,
+            COUNT(DISTINCT `AppointmentID`) as unique_appointments,
+            COUNT(DISTINCT `Status`) as appointment_statuses,
+            COUNT(DISTINCT s.`Specialty`) as unique_specialties
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
         """,
         
-        "Category Performance": f"""
+        "Specialty Performance": f"""
         SELECT 
-            `Product Category`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Product Category` IS NOT NULL
-        GROUP BY `Product Category`
-        ORDER BY total_revenue DESC
+            s.`Specialty`,
+            COUNT(*) as appointment_count,
+            COUNT(DISTINCT a.`PatientID`) as unique_patients,
+            COUNT(DISTINCT a.`SpecialistID`) as specialists_count,
+            COUNT(CASE WHEN a.`Status` = 'confirmed' THEN 1 END) as confirmed_appointments
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
+        WHERE s.`Specialty` IS NOT NULL
+        GROUP BY s.`Specialty`
+        ORDER BY appointment_count DESC
         """,
         
-        "Customer Demographics": f"""
+        "Appointment Status Analysis": f"""
         SELECT 
-            `Gender`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            COUNT(DISTINCT `Customer ID`) as unique_customers
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Gender` IS NOT NULL
-        GROUP BY `Gender`
-        ORDER BY total_revenue DESC
+            `Status`,
+            COUNT(*) as appointment_count,
+            COUNT(DISTINCT `PatientID`) as unique_patients,
+            COUNT(DISTINCT `SpecialistID`) as unique_specialists,
+            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+        FROM `{project_id}.medical_booking_system.appointments`
+        WHERE `Status` IS NOT NULL
+        GROUP BY `Status`
+        ORDER BY appointment_count DESC
         """,
         
                 "Monthly Trends": f"""
         SELECT 
-            EXTRACT(YEAR FROM `Date`) as year,
-            EXTRACT(MONTH FROM `Date`) as month,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Date` IS NOT NULL
+            EXTRACT(YEAR FROM d.`Date`) as year,
+            EXTRACT(MONTH FROM d.`Date`) as month,
+            COUNT(*) as appointment_count,
+            COUNT(DISTINCT a.`PatientID`) as unique_patients,
+            COUNT(DISTINCT a.`SpecialistID`) as unique_specialists
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.dates` d ON a.DateKey = d.DateKey
+        WHERE d.`Date` IS NOT NULL
         GROUP BY year, month
         ORDER BY year, month
         """,
         
-                "Customer Analysis": f"""
+                "Patient Analysis": f"""
         SELECT 
-            `Customer ID`,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
-            COUNT(DISTINCT `Product Category`) as categories_purchased,
-            MIN(`Date`) as first_purchase,
-            MAX(`Date`) as last_purchase
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Customer ID` IS NOT NULL
-        GROUP BY `Customer ID`
-        ORDER BY total_spent DESC
+            p.`PatientID`,
+            p.`FirstName`,
+            p.`LastName`,
+            COUNT(*) as appointment_count,
+            COUNT(DISTINCT a.`SpecialistID`) as specialists_seen,
+            COUNT(DISTINCT s.`Specialty`) as specialties_used,
+            MIN(d.`Date`) as first_appointment,
+            MAX(d.`Date`) as last_appointment
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.patients` p ON a.PatientID = p.PatientID
+        JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
+        JOIN `{project_id}.medical_booking_system.dates` d ON a.DateKey = d.DateKey
+        WHERE p.`PatientID` IS NOT NULL
+        GROUP BY p.`PatientID`, p.`FirstName`, p.`LastName`
+        ORDER BY appointment_count DESC
         LIMIT 20
         """,
         
-        "Age Group Analysis": f"""
+        "Specialist Performance": f"""
         SELECT 
-            CASE
-                WHEN CAST(`Age` AS INT64) < 18 THEN 'Under 18'
-                WHEN CAST(`Age` AS INT64) BETWEEN 18 AND 25 THEN '18-25'
-                WHEN CAST(`Age` AS INT64) BETWEEN 26 AND 35 THEN '26-35'
-                WHEN CAST(`Age` AS INT64) BETWEEN 36 AND 45 THEN '36-45'
-                WHEN CAST(`Age` AS INT64) BETWEEN 46 AND 55 THEN '46-55'
-                ELSE '55+'
-            END as age_group,
-            COUNT(*) as transaction_count,
-            ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-            ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-        FROM `{project_id}.assignment_one_1.retail_sales`
-        WHERE `Age` IS NOT NULL
-        GROUP BY age_group
-        ORDER BY total_revenue DESC
+            s.`FirstName`,
+            s.`LastName`,
+            s.`Specialty`,
+            s.`Rating`,
+            COUNT(*) as appointment_count,
+            COUNT(DISTINCT a.`PatientID`) as unique_patients,
+            COUNT(CASE WHEN a.`Status` = 'confirmed' THEN 1 END) as confirmed_appointments,
+            ROUND(COUNT(CASE WHEN a.`Status` = 'confirmed' THEN 1 END) * 100.0 / COUNT(*), 2) as confirmation_rate
+        FROM `{project_id}.medical_booking_system.appointments` a
+        JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
+        WHERE s.`SpecialistID` IS NOT NULL
+        GROUP BY s.`SpecialistID`, s.`FirstName`, s.`LastName`, s.`Specialty`, s.`Rating`
+        ORDER BY appointment_count DESC
         """
     }
     
@@ -476,7 +482,7 @@ elif page == "🔍 SQL Queries":
     st.subheader("✍️ Custom SQL Query")
     
     custom_query = st.text_area("Enter your custom SQL query:", height=150, 
-                               placeholder=f"SELECT `Transaction ID`, `Customer ID`, `Product Category`, `Total Amount` FROM `{project_id}.assignment_one_1.retail_sales` LIMIT 10")
+                               placeholder=f"SELECT `Transaction ID`, `Customer ID`, `Product Category`, `Total Amount` FROM `{project_id}.medical_booking_system.appointments` LIMIT 10")
     
     if st.button("🔍 Run Custom Query"):
         if custom_query.strip():
@@ -523,13 +529,13 @@ elif page == "📈 Visualizations":
     st.subheader("📊 Choose Visualization Type")
     
     viz_options = [
-        "Revenue by Category",
-        "Customer Demographics",
+        "Appointments by Specialty",
+        "Appointment Status Distribution",
         "Monthly Trends",
-        "Customer Spending",
-        "Age Group Analysis",
-        "Product Performance",
-        "Interactive Sales Over Time"
+        "Patient Booking Patterns",
+        "Specialist Performance",
+        "Time Slot Utilization",
+        "Interactive Appointments Over Time"
     ]
     
     selected_viz = st.selectbox("Select visualization:", viz_options)
@@ -537,17 +543,18 @@ elif page == "📈 Visualizations":
     if st.button("🎨 Generate Visualization", type="primary"):
         with st.spinner("Generating visualization..."):
             try:
-                if selected_viz == "Revenue by Category":
-                    # Category revenue analysis
+                if selected_viz == "Appointments by Specialty":
+                    # Specialty appointment analysis
                     query = f"""
                     SELECT 
-                        `Product Category`,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        COUNT(*) as transaction_count
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Product Category` IS NOT NULL
-                    GROUP BY `Product Category`
-                    ORDER BY total_revenue DESC
+                        s.`Specialty`,
+                        COUNT(*) as appointment_count,
+                        COUNT(DISTINCT a.`PatientID`) as unique_patients
+                    FROM `{project_id}.medical_booking_system.appointments` a
+                    JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
+                    WHERE s.`Specialty` IS NOT NULL
+                    GROUP BY s.`Specialty`
+                    ORDER BY appointment_count DESC
                     """
                     
                     df = client.query(query).to_dataframe()
@@ -555,31 +562,31 @@ elif page == "📈 Visualizations":
                     # Create bar chart
                     fig = px.bar(
                         df, 
-                        x='Product Category', 
-                        y='total_revenue',
-                        title="Revenue by Product Category",
-                        color='transaction_count',
+                        x='Specialty', 
+                        y='appointment_count',
+                        title="Appointments by Medical Specialty",
+                        color='unique_patients',
                         color_continuous_scale='Viridis'
                     )
                     fig.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display data
-                    st.write("**Category Revenue Data:**")
+                    st.write("**Specialty Appointment Data:**")
                     st.dataframe(df, use_container_width=True)
                 
-                elif selected_viz == "Customer Demographics":
-                    # Customer demographics analysis
+                elif selected_viz == "Appointment Status Distribution":
+                    # Appointment status analysis
                     query = f"""
                     SELECT 
-                        `Gender`,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
-                        COUNT(*) as transaction_count,
-                        ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Gender` IS NOT NULL
-                    GROUP BY `Gender`
-                    ORDER BY total_revenue DESC
+                        `Status`,
+                        COUNT(*) as appointment_count,
+                        COUNT(DISTINCT `PatientID`) as unique_patients,
+                        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+                    FROM `{project_id}.medical_booking_system.appointments`
+                    WHERE `Status` IS NOT NULL
+                    GROUP BY `Status`
+                    ORDER BY appointment_count DESC
                     """
                     
                     df = client.query(query).to_dataframe()
@@ -587,26 +594,27 @@ elif page == "📈 Visualizations":
                     # Create pie chart
                     fig = px.pie(
                         df,
-                        values='total_revenue',
-                        names='Gender',
-                        title="Revenue Distribution by Gender"
+                        values='appointment_count',
+                        names='Status',
+                        title="Appointment Status Distribution"
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display data
-                    st.write("**Customer Demographics Data:**")
+                    st.write("**Appointment Status Data:**")
                     st.dataframe(df, use_container_width=True)
                 
                 elif selected_viz == "Monthly Trends":
                     # Monthly trends analysis
                     query = f"""
                     SELECT 
-                        EXTRACT(YEAR FROM `Date`) as year,
-                        EXTRACT(MONTH FROM `Date`) as month,
-                        ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as monthly_revenue,
-                        COUNT(*) as transaction_count
-                    FROM `{project_id}.assignment_one_1.retail_sales`
-                    WHERE `Date` IS NOT NULL
+                        EXTRACT(YEAR FROM d.`Date`) as year,
+                        EXTRACT(MONTH FROM d.`Date`) as month,
+                        COUNT(*) as appointment_count,
+                        COUNT(DISTINCT a.`PatientID`) as unique_patients
+                    FROM `{project_id}.medical_booking_system.appointments` a
+                    JOIN `{project_id}.medical_booking_system.dates` d ON a.DateKey = d.DateKey
+                    WHERE d.`Date` IS NOT NULL
                     GROUP BY year, month
                     ORDER BY year, month
                     """
@@ -618,11 +626,11 @@ elif page == "📈 Visualizations":
                     fig = px.line(
                         df,
                         x='date',
-                        y='monthly_revenue',
-                        title="Monthly Revenue Trends",
+                        y='appointment_count',
+                        title="Monthly Appointment Trends",
                         markers=True
                     )
-                    fig.update_layout(xaxis_title="Month", yaxis_title="Revenue ($)")
+                    fig.update_layout(xaxis_title="Month", yaxis_title="Number of Appointments")
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display data
@@ -637,7 +645,7 @@ elif page == "📈 Visualizations":
                         ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_spent,
                         COUNT(*) as transaction_count,
                         ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    FROM `{project_id}.medical_booking_system.appointments`
                     WHERE `Customer ID` IS NOT NULL
                     GROUP BY `Customer ID`
                     ORDER BY total_spent DESC
@@ -675,7 +683,7 @@ elif page == "📈 Visualizations":
                         COUNT(*) as transaction_count,
                         ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
                         ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value
-                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    FROM `{project_id}.medical_booking_system.appointments`
                     WHERE `Age` IS NOT NULL
                     GROUP BY age_group
                     ORDER BY total_revenue DESC
@@ -706,7 +714,7 @@ elif page == "📈 Visualizations":
                         COUNT(*) as times_purchased,
                         ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
                         ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_quantity_sold
-                    FROM `{project_id}.assignment_one_1.retail_sales`
+                    FROM `{project_id}.medical_booking_system.appointments`
                     WHERE `Product Category` IS NOT NULL
                     GROUP BY `Product Category`
                     ORDER BY total_revenue DESC
@@ -744,7 +752,7 @@ elif page == "📈 Visualizations":
                             `Total Amount`,
                             `Product Category`,
                             `Customer ID`
-                        FROM `{project_id}.assignment_one_1.retail_sales`
+                        FROM `{project_id}.medical_booking_system.appointments`
                         WHERE `Date` IS NOT NULL
                         ORDER BY `Date`
                         """
@@ -867,7 +875,7 @@ elif page == "💡 Business Insights":
             ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
             ROUND(SUM(CAST(`Quantity` AS INT64)), 0) as total_items_sold,
             ROUND(AVG(CAST(`Quantity` AS FLOAT64)), 2) as avg_items_per_transaction
-        FROM `{project_id}.assignment_one_1.retail_sales`
+        FROM `{project_id}.medical_booking_system.appointments`
         """
         
         kpi_df = client.query(kpi_query).to_dataframe()
@@ -906,7 +914,7 @@ elif page == "💡 Business Insights":
             ROUND(SUM(CAST(`Total Amount` AS FLOAT64)), 2) as total_revenue,
             COUNT(*) as transaction_count,
             ROUND(SUM(CAST(`Total Amount` AS FLOAT64)) * 100.0 / SUM(SUM(CAST(`Total Amount` AS FLOAT64))) OVER(), 2) as revenue_percentage
-        FROM `{project_id}.assignment_one_1.retail_sales`
+        FROM `{project_id}.medical_booking_system.appointments`
         WHERE `Product Category` IS NOT NULL
         GROUP BY `Product Category`
         ORDER BY total_revenue DESC
@@ -941,7 +949,7 @@ elif page == "💡 Business Insights":
             COUNT(*) as transaction_count,
             ROUND(AVG(CAST(`Total Amount` AS FLOAT64)), 2) as avg_transaction_value,
             COUNT(DISTINCT `Customer ID`) as unique_customers
-        FROM `{project_id}.assignment_one_1.retail_sales`
+        FROM `{project_id}.medical_booking_system.appointments`
         WHERE `Product Category` IS NOT NULL
         GROUP BY `Product Category`
         ORDER BY total_revenue DESC
@@ -987,7 +995,7 @@ elif page == "💡 Business Insights":
             SELECT 
                 `Customer ID`,
                 SUM(CAST(`Total Amount` AS FLOAT64)) as total_spent
-            FROM `{project_id}.assignment_one_1.retail_sales`
+            FROM `{project_id}.medical_booking_system.appointments`
             WHERE `Customer ID` IS NOT NULL
             GROUP BY `Customer ID`
         )
@@ -1055,12 +1063,12 @@ elif page == "📋 About":
     
     st.markdown("""
     ## 🎯 Purpose
-    This dashboard provides comprehensive analysis of the retail sales dataset from BigQuery, 
-    offering business intelligence insights and data-driven recommendations.
+    This dashboard provides comprehensive analysis of the medical booking system from BigQuery, 
+    offering healthcare intelligence insights and data-driven recommendations.
     
     ## 🔗 Data Source
-    - **Dataset:** `moonlit-autumn-468306-p6.assignment_one_1.retail_sales`
-    - **Source:** Kaggle Retail Sales Dataset
+    - **Dataset:** `moonlit-autumn-468306-p6.medical_booking_system`
+    - **Source:** Medical Booking System Data
     - **Platform:** Google BigQuery
     
     ## 🛠️ Features
@@ -1071,11 +1079,11 @@ elif page == "📋 About":
     - **Data Export:** Download results and insights
     
     ## 📊 Analysis Capabilities
-    - Revenue analysis by category and store
-    - Customer segmentation and behavior analysis
+    - Appointment analysis by specialty and status
+    - Patient segmentation and behavior analysis
     - Temporal trends and seasonality
-    - Payment method performance
-    - Product performance insights
+    - Specialist performance analysis
+    - Time slot utilization insights
     
          ## 🚀 Technologies Used
      - **Streamlit:** Web application framework
@@ -1093,7 +1101,7 @@ elif page == "📋 About":
      
      ---
      
-     **📊 Retail Sales Analysis Dashboard | Powered by BigQuery & Streamlit**
+     **🏥 Medical Booking System Dashboard | Powered by BigQuery & Streamlit**
     """)
     
     # Footer
@@ -1104,7 +1112,7 @@ elif page == "📋 About":
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
-    <p>📊 Retail Sales Analysis Dashboard | BigQuery Integration | Built with Streamlit</p>
-    <p><small>Comprehensive analysis of retail sales data with business intelligence insights</small></p>
+    <p>🏥 Medical Booking System Dashboard | BigQuery Integration | Built with Streamlit</p>
+    <p><small>Comprehensive analysis of medical booking data with healthcare intelligence insights</small></p>
 </div>
 """, unsafe_allow_html=True)
