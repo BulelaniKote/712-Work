@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 import json
 
 def app():
-    # Ensure admin user exists
-    create_admin_user()
+    # Note: We're using JSON for user authentication, not BigQuery users table
+    # create_admin_user()  # Commented out since we use JSON authentication
     
     st.title("👨‍💼 Admin Dashboard")
     st.markdown("**Facility Administrator Interface** - Monitor bookings, analyze performance, and generate reports")
@@ -137,6 +137,10 @@ def app():
                 })
             
             performance_df = pd.DataFrame(performance_data)
+            
+            # Convert Confirmation Rate to numeric for sorting and charts
+            performance_df['Confirmation_Rate_Numeric'] = performance_df['Confirmation Rate'].str.rstrip('%').astype(float)
+            
             st.dataframe(performance_df, use_container_width=True)
             
             # Performance charts
@@ -151,15 +155,16 @@ def app():
             
             with col2:
                 st.subheader("🎯 Confirmation Rates")
-                fig = px.bar(performance_df, x='Specialty', y='Confirmation Rate',
+                # Use the numeric version for the chart
+                fig = px.bar(performance_df, x='Specialty', y='Confirmation_Rate_Numeric',
                            title="Confirmation Rate by Specialty",
-                           color='Confirmation Rate', color_continuous_scale='Greens')
+                           color='Confirmation_Rate_Numeric', color_continuous_scale='Greens')
                 fig.update_layout(yaxis_title="Confirmation Rate (%)")
                 st.plotly_chart(fig, use_container_width=True)
             
             # Top performing specialties
             st.subheader("🏆 Top Performing Specialties")
-            top_specialties = performance_df.nlargest(3, 'Confirmation Rate')
+            top_specialties = performance_df.nlargest(3, 'Confirmation_Rate_Numeric')
             
             for idx, row in top_specialties.iterrows():
                 col1, col2, col3 = st.columns([2, 1, 1])
