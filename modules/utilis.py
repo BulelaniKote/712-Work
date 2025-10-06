@@ -530,6 +530,138 @@ def create_admin_user_auto():
         st.error(f"Error creating admin user: {e}")
         return False
 
+def get_medical_specialists():
+    """Get specialists data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.specialists`
+        ORDER BY FirstName, LastName
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching specialists: {e}")
+        return []
+
+def get_medical_patients():
+    """Get patients data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.patients`
+        ORDER BY FirstName, LastName
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching patients: {e}")
+        return []
+
+def get_medical_appointments():
+    """Get appointments data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT 
+            a.*,
+            p.FirstName as PatientFirstName,
+            p.LastName as PatientLastName,
+            s.FirstName as SpecialistFirstName,
+            s.LastName as SpecialistLastName,
+            s.Specialty,
+            d.Year,
+            d.Month,
+            d.Day,
+            d.Weekday,
+            t.StartTime,
+            t.EndTime,
+            t.Label as TimeLabel
+        FROM `{project_id}.medical_booking_system.appointments` a
+        LEFT JOIN `{project_id}.medical_booking_system.patients` p ON a.PatientID = p.PatientID
+        LEFT JOIN `{project_id}.medical_booking_system.specialists` s ON a.SpecialistID = s.SpecialistID
+        LEFT JOIN `{project_id}.medical_booking_system.dates` d ON a.DateKey = d.DateKey
+        LEFT JOIN `{project_id}.medical_booking_system.timeslots` t ON a.TimeSlotID = t.TimeSlotID
+        ORDER BY a.DateKey, t.StartTime
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching medical appointments: {e}")
+        return []
+
+def get_medical_clients():
+    """Get clients data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.clients`
+        ORDER BY FirstName, LastName
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching clients: {e}")
+        return []
+
+def get_medical_dates():
+    """Get dates data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.dates`
+        ORDER BY DateKey
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching dates: {e}")
+        return []
+
+def get_medical_timeslots():
+    """Get timeslots data from the uploaded medical data tables"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return []
+    
+    try:
+        query = f"""
+        SELECT * FROM `{project_id}.medical_booking_system.timeslots`
+        ORDER BY StartTime
+        """
+        
+        result = client.query(query).to_dataframe()
+        return result.to_dict('records')
+        
+    except Exception as e:
+        st.error(f"Error fetching timeslots: {e}")
+        return []
+
 def create_admin_user():
     """Create default admin user if it doesn't exist in BigQuery"""
     client, project_id = get_bigquery_client()
