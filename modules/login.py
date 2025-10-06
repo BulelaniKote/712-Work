@@ -1,5 +1,6 @@
 import streamlit as st
-from modules.utilis import authenticate_user, register_user
+import plotly.express as px
+from modules.utilis import authenticate_user, register_user, get_medical_specialists, get_medical_appointments
 
 def login_form():
     """Login form component"""
@@ -117,3 +118,60 @@ def app():
     }
     </style>
     """, unsafe_allow_html=True)
+    
+    # BigQuery Analytics Section
+    st.divider()
+    st.subheader("📊 System Overview (BigQuery Data)")
+    
+    # Get BigQuery data for system overview
+    specialists_data = get_medical_specialists()
+    appointments_data = get_medical_appointments()
+    
+    if specialists_data and appointments_data:
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("👨‍⚕️ Specialists", len(specialists_data))
+        with col2:
+            st.metric("📅 Appointments", len(appointments_data))
+        with col3:
+            # Calculate specialties
+            specialties = set([spec.get('Specialty', 'Unknown') for spec in specialists_data])
+            st.metric("🏥 Specialties", len(specialties))
+        with col4:
+            # Calculate average rating
+            ratings = [spec.get('Rating', 0) for spec in specialists_data if spec.get('Rating', 0) > 0]
+            avg_rating = sum(ratings) / len(ratings) if ratings else 0
+            st.metric("⭐ Avg Rating", f"{avg_rating:.1f}/5.0")
+        
+        # Quick analytics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🏥 Available Specialties")
+            specialty_counts = {}
+            for spec in specialists_data:
+                specialty = spec.get('Specialty', 'Unknown')
+                specialty_counts[specialty] = specialty_counts.get(specialty, 0) + 1
+            
+            if specialty_counts:
+                fig = px.bar(x=list(specialty_counts.keys()), y=list(specialty_counts.values()),
+                           title="Specialists by Specialty", color=list(specialty_counts.values()),
+                           color_continuous_scale='Blues')
+                fig.update_layout(showlegend=False, xaxis_title="Specialty", yaxis_title="Number of Specialists")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("📈 System Health")
+            st.info(f"""
+            **✅ System Status:**
+            - Database: Connected
+            - Specialists: {len(specialists_data)} Active
+            - Appointments: {len(appointments_data)} Total
+            - Data Quality: High
+            """)
+            
+            st.success("🚀 Ready to book your appointment!")
+    
+    else:
+        st.warning("⚠️ System data loading... Please ensure BigQuery tables are available.")

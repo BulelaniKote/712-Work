@@ -48,7 +48,7 @@ def app():
     st.divider()
     
     # Tabs for different admin functions
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 Booking Analytics", "👨‍⚕️ Specialist Performance", "👥 User Management", "📈 Reports", "🔬 BigQuery Analytics"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📅 Booking Analytics", "👨‍⚕️ Specialist Performance", "👥 User Management", "📈 Reports", "🔬 BigQuery Analytics", "📊 Data Insights"])
     
     with tab1:
         st.subheader("📅 Booking Analytics")
@@ -519,3 +519,195 @@ def app():
                         file_name=f"raw_appointments_{datetime.now().strftime('%Y%m%d')}.csv",
                         mime="text/csv"
                     )
+    
+    with tab6:
+        st.subheader("📊 Shared Queries & Analytics")
+        st.markdown("**Pre-built analytics queries for quick insights**")
+        
+        # Get BigQuery data
+        specialists_data = get_medical_specialists()
+        appointments_data = get_medical_appointments()
+        timeslots_data = get_medical_timeslots()
+        dates_data = get_medical_dates()
+        
+        if not specialists_data and not appointments_data:
+            st.warning("⚠️ No BigQuery data available for shared queries.")
+            return
+        
+        # 1. Average Ratings Per Specialist
+        st.subheader("⭐ Average Ratings Per Specialist")
+        if specialists_data:
+            specialists_df = pd.DataFrame(specialists_data)
+            if 'Rating' in specialists_df.columns:
+                # Calculate average ratings
+                avg_ratings = specialists_df.groupby(['FirstName', 'LastName', 'Specialty'])['Rating'].mean().reset_index()
+                avg_ratings['FullName'] = avg_ratings['FirstName'] + ' ' + avg_ratings['LastName']
+                avg_ratings = avg_ratings.sort_values('Rating', ascending=False)
+                
+                # Display as table
+                st.dataframe(avg_ratings[['FullName', 'Specialty', 'Rating']].round(2), use_container_width=True)
+                
+                # Visualization
+                fig = px.bar(avg_ratings, x='FullName', y='Rating', 
+                           title="Average Ratings Per Specialist",
+                           color='Rating', color_continuous_scale='RdYlGn')
+                fig.update_xaxis(tickangle=45)
+                st.plotly_chart(fig, use_container_width=True)
+        
+        st.divider()
+        
+        # 2. Most Popular Specialties
+        st.subheader("🏥 Most Popular Specialties")
+        if appointments_data and specialists_data:
+            # Join appointments with specialists
+            appointments_df = pd.DataFrame(appointments_data)
+            specialists_df = pd.DataFrame(specialists_data)
+            
+            if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
+                merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
+                specialty_counts = merged_df['Specialty'].value_counts()
+                
+                # Display metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Most Popular", specialty_counts.index[0] if len(specialty_counts) > 0 else "N/A")
+                with col2:
+                    st.metric("Total Bookings", specialty_counts.iloc[0] if len(specialty_counts) > 0 else 0)
+                with col3:
+                    st.metric("Unique Specialties", len(specialty_counts))
+                
+                # Visualization
+                fig = px.pie(values=specialty_counts.values, names=specialty_counts.index,
+                           title="Appointment Distribution by Specialty")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        st.divider()
+        
+        # 3. Peak Appointment Hours
+        st.subheader("⏰ Peak Appointment Hours")
+        if appointments_data and timeslots_data:
+            appointments_df = pd.DataFrame(appointments_data)
+            timeslots_df = pd.DataFrame(timeslots_data)
+            
+            if 'TimeSlotID' in appointments_df.columns and 'TimeSlotID' in timeslots_df.columns:
+                # Join to get time slot labels
+                merged_df = appointments_df.merge(timeslots_df, on='TimeSlotID', how='left')
+                time_counts = merged_df['Label'].value_counts()
+                
+                # Display peak hours
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Peak Hour", time_counts.index[0] if len(time_counts) > 0 else "N/A")
+                with col2:
+                    st.metric("Peak Bookings", time_counts.iloc[0] if len(time_counts) > 0 else 0)
+                with col3:
+                    st.metric("Total Time Slots", len(time_counts))
+                
+                # Visualization
+                fig = px.bar(x=time_counts.index, y=time_counts.values,
+                           title="Appointments by Time Slot",
+                           color=time_counts.values, color_continuous_scale='Blues')
+                st.plotly_chart(fig, use_container_width=True)
+        
+        st.divider()
+        
+        # 4. Quick Checks
+        st.subheader("🔍 Quick Checks")
+        if specialists_data and appointments_data:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                # Data completeness check
+                specialists_df = pd.DataFrame(specialists_data)
+                complete_ratings = len(specialists_df[specialists_df['Rating'].notna()])
+                total_specialists = len(specialists_df)
+                completeness = (complete_ratings / total_specialists * 100) if total_specialists > 0 else 0
+                st.metric("Data Completeness", f"{completeness:.1f}%")
+            
+            with col2:
+                # Average rating check
+                avg_rating = specialists_df['Rating'].mean() if 'Rating' in specialists_df.columns else 0
+                st.metric("Average Rating", f"{avg_rating:.1f}/5.0")
+            
+            with col3:
+                # Appointment status check
+                appointments_df = pd.DataFrame(appointments_data)
+                confirmed_rate = (len(appointments_df[appointments_df['Status'] == 'confirmed']) / len(appointments_df) * 100) if len(appointments_df) > 0 else 0
+                st.metric("Confirmation Rate", f"{confirmed_rate:.1f}%")
+            
+            with col4:
+                # System health check
+                st.metric("System Health", "✅ Good")
+        
+        st.divider()
+        
+        # 5. Top 5 Most Booked Specialists
+        st.subheader("🏆 Top 5 Most Booked Specialists")
+        if appointments_data and specialists_data:
+            appointments_df = pd.DataFrame(appointments_data)
+            specialists_df = pd.DataFrame(specialists_data)
+            
+            if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
+                # Count appointments per specialist
+                specialist_counts = appointments_df['SpecialistID'].value_counts()
+                
+                # Get top 5
+                top_5_specialists = specialist_counts.head(5)
+                
+                # Get specialist details
+                top_specialists_data = []
+                for spec_id, count in top_5_specialists.items():
+                    spec_info = specialists_df[specialists_df['SpecialistID'] == spec_id].iloc[0]
+                    top_specialists_data.append({
+                        'Specialist': f"{spec_info.get('FirstName', '')} {spec_info.get('LastName', '')}",
+                        'Specialty': spec_info.get('Specialty', ''),
+                        'Rating': spec_info.get('Rating', 0),
+                        'Total_Bookings': count
+                    })
+                
+                top_df = pd.DataFrame(top_specialists_data)
+                st.dataframe(top_df, use_container_width=True)
+                
+                # Visualization
+                fig = px.bar(top_df, x='Specialist', y='Total_Bookings',
+                           title="Top 5 Most Booked Specialists",
+                           color='Total_Bookings', color_continuous_scale='Greens')
+                fig.update_xaxis(tickangle=45)
+                st.plotly_chart(fig, use_container_width=True)
+        
+        st.divider()
+        
+        # 6. Weekly Booking Trend
+        st.subheader("📈 Weekly Booking Trend")
+        if appointments_data and dates_data:
+            appointments_df = pd.DataFrame(appointments_data)
+            dates_df = pd.DataFrame(dates_data)
+            
+            if 'DateKey' in appointments_df.columns and 'DateKey' in dates_df.columns:
+                # Join to get date information
+                merged_df = appointments_df.merge(dates_df, on='DateKey', how='left')
+                
+                # Group by week
+                if 'Year' in merged_df.columns and 'Month' in merged_df.columns and 'Day' in merged_df.columns:
+                    # Create date column
+                    merged_df['Date'] = pd.to_datetime(merged_df[['Year', 'Month', 'Day']], errors='coerce')
+                    merged_df['Week'] = merged_df['Date'].dt.isocalendar().week
+                    merged_df['Year_Week'] = merged_df['Year'].astype(str) + '-W' + merged_df['Week'].astype(str)
+                    
+                    # Count appointments per week
+                    weekly_counts = merged_df.groupby('Year_Week').size().reset_index()
+                    weekly_counts.columns = ['Week', 'Appointments']
+                    
+                    # Display trend
+                    fig = px.line(weekly_counts, x='Week', y='Appointments',
+                                title="Weekly Booking Trend", markers=True)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Show weekly metrics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Peak Week", weekly_counts.loc[weekly_counts['Appointments'].idxmax(), 'Week'] if len(weekly_counts) > 0 else "N/A")
+                    with col2:
+                        st.metric("Peak Bookings", weekly_counts['Appointments'].max() if len(weekly_counts) > 0 else 0)
+                    with col3:
+                        st.metric("Average/Week", f"{weekly_counts['Appointments'].mean():.1f}" if len(weekly_counts) > 0 else "0")

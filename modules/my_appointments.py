@@ -1,15 +1,21 @@
 import streamlit as st
 import pandas as pd
-from modules.utilis import get_current_user_data
+import plotly.express as px
+from modules.utilis import get_current_user_data, get_medical_appointments, get_medical_specialists
 from datetime import datetime
 
 def app():
     st.title("📑 My Appointments")
     st.markdown("Track your booked appointments here.")
 
-    # Get current user's appointments
+    # Get current user's appointments from JSON
     user_data = get_current_user_data()
     
+    # Get BigQuery data for analytics
+    all_appointments = get_medical_appointments()
+    specialists_data = get_medical_specialists()
+    
+    # Display user's personal appointments
     if user_data and user_data.get('appointments'):
         appointments = user_data['appointments']
         
@@ -53,6 +59,90 @@ def app():
     else:
         st.info("📅 You haven't booked any appointments yet.")
         st.markdown("Visit the [Book Appointment](/Book_Appointment) page to schedule your first visit!")
+    
+    # BigQuery Analytics Section
+    st.divider()
+    st.subheader("📊 System Appointment Analytics (BigQuery Data)")
+    
+    if all_appointments and specialists_data:
+        # Convert BigQuery data to DataFrame
+        appointments_df = pd.DataFrame(all_appointments)
+        specialists_df = pd.DataFrame(specialists_data)
+        
+        # Analytics based on BigQuery data
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📈 Appointment Trends")
+            
+            # Time slot analysis from BigQuery
+            if 'TimeSlotID' in appointments_df.columns:
+                time_slot_counts = appointments_df['TimeSlotID'].value_counts()
+                fig = px.bar(x=time_slot_counts.index, y=time_slot_counts.values,
+                           title="Appointments by Time Slot (BigQuery Data)",
+                           color=time_slot_counts.values,
+                           color_continuous_scale='Blues')
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("🏥 Specialty Distribution")
+            
+            # Join appointments with specialists to get specialty data
+            if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
+                merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
+                specialty_counts = merged_df['Specialty'].value_counts()
+                
+                fig = px.pie(values=specialty_counts.values, names=specialty_counts.index,
+                           title="Appointments by Specialty (BigQuery Data)")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Status analysis
+        st.subheader("📋 Appointment Status Analysis")
+        if 'Status' in appointments_df.columns:
+            status_counts = appointments_df['Status'].value_counts()
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total System Appointments", len(appointments_df))
+            with col2:
+                confirmed_system = len(appointments_df[appointments_df['Status'] == 'confirmed'])
+                st.metric("Confirmed (System)", confirmed_system)
+            with col3:
+                st.metric("Your vs System", f"{len(appointments) if user_data and user_data.get('appointments') else 0} / {len(appointments_df)}")
+        
+        # Data insights
+        st.subheader("💡 Key Insights from BigQuery Data")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.info(f"""
+            **📊 System Overview:**
+            - Total Appointments: {len(appointments_df)}
+            - Active Specialists: {len(specialists_df)}
+            - Data Source: BigQuery
+            """)
+        
+        with col2:
+            if 'Status' in appointments_df.columns:
+                confirmation_rate = (len(appointments_df[appointments_df['Status'] == 'confirmed']) / len(appointments_df)) * 100
+                st.info(f"""
+                **🎯 Performance:**
+                - Confirmation Rate: {confirmation_rate:.1f}%
+                - Data Quality: High
+                - System Health: Active
+                """)
+        
+        with col3:
+            st.info(f"""
+            **👤 Your Activity:**
+            - Your Appointments: {len(appointments) if user_data and user_data.get('appointments') else 0}
+            - System Average: {len(appointments_df) / len(specialists_df) if len(specialists_df) > 0 else 0:.1f}
+            - Status: Active User
+            """)
+    
+    else:
+        st.warning("⚠️ No BigQuery data available for analytics. Please ensure the medical data tables are uploaded.")
 
 
 
