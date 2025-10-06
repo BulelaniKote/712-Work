@@ -48,7 +48,7 @@ with st.sidebar:
         # Update current page when selection changes
         if selected != st.session_state.get('current_page', "🏠 Home"):
             st.session_state.current_page = selected
-        else:
+    else:
         # Navigation menu for non-logged in users
         selected = option_menu(
             "📋 Navigation",
