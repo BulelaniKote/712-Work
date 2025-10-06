@@ -54,6 +54,9 @@ def verify_password(password, hashed):
 
 def register_user(username, email, password):
     """Register a new user in BigQuery"""
+    # Ensure dataset exists first
+    ensure_dataset_exists()
+    
     client, project_id = get_bigquery_client()
     if not client:
         return False, "Database connection failed"
@@ -119,6 +122,9 @@ def register_user(username, email, password):
 
 def authenticate_user(username, password):
     """Authenticate user login from BigQuery"""
+    # Ensure dataset exists first
+    ensure_dataset_exists()
+    
     client, project_id = get_bigquery_client()
     if not client:
         return False, "Database connection failed"
@@ -164,6 +170,9 @@ def get_current_user_data():
     """Get current user's data from BigQuery"""
     if not is_logged_in():
         return None
+    
+    # Ensure dataset exists first
+    ensure_dataset_exists()
     
     client, project_id = get_bigquery_client()
     if not client:
@@ -401,6 +410,125 @@ def get_specialist_performance():
         stats['confirmation_rate'] = (stats['confirmed_appointments'] / stats['total_appointments'] * 100) if stats['total_appointments'] > 0 else 0
     
     return specialist_stats
+
+def ensure_dataset_exists():
+    """Ensure the medical_booking_system dataset exists in BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        dataset_id = "medical_booking_system"
+        dataset_ref = client.dataset(dataset_id)
+        
+        # Check if dataset exists
+        try:
+            client.get_dataset(dataset_ref)
+            return True  # Dataset exists
+        except:
+            # Dataset doesn't exist, create it
+            dataset = bigquery.Dataset(dataset_ref)
+            dataset.location = "US"
+            dataset = client.create_dataset(dataset, timeout=30)
+            st.success(f"Created dataset: {dataset_id}")
+            
+            # Create tables after dataset is created
+            create_tables()
+            return True
+            
+    except Exception as e:
+        st.error(f"Error ensuring dataset exists: {e}")
+        return False
+
+def create_tables():
+    """Create the users and appointments tables in BigQuery"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        dataset_id = "medical_booking_system"
+        
+        # Create users table
+        users_table_id = f"{project_id}.{dataset_id}.users"
+        users_schema = [
+            bigquery.SchemaField("username", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("email", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("password", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("role", "STRING", mode="REQUIRED")
+        ]
+        
+        users_table = bigquery.Table(users_table_id, schema=users_schema)
+        users_table = client.create_table(users_table, exists_ok=True)
+        
+        # Create appointments table
+        appointments_table_id = f"{project_id}.{dataset_id}.appointments"
+        appointments_schema = [
+            bigquery.SchemaField("username", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("email", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("specialty", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
+            bigquery.SchemaField("time", "TIME", mode="REQUIRED"),
+            bigquery.SchemaField("reason", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED")
+        ]
+        
+        appointments_table = bigquery.Table(appointments_table_id, schema=appointments_schema)
+        appointments_table = client.create_table(appointments_table, exists_ok=True)
+        
+        # Create admin user
+        create_admin_user_auto()
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Error creating tables: {e}")
+        return False
+
+def create_admin_user_auto():
+    """Create default admin user automatically"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        # Check if admin user exists
+        query = f"""
+        SELECT username FROM `{project_id}.medical_booking_system.users`
+        WHERE username = 'admin'
+        """
+        
+        result = client.query(query).to_dataframe()
+        
+        if not result.empty:
+            return False  # Admin already exists
+        
+        # Create admin user
+        query = f"""
+        INSERT INTO `{project_id}.medical_booking_system.users`
+        (username, email, password, created_at, role)
+        VALUES (@username, @email, @password, @created_at, @role)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", "admin"),
+                bigquery.ScalarQueryParameter("email", "STRING", "admin@medicalcenter.com"),
+                bigquery.ScalarQueryParameter("password", "STRING", hash_password("admin123")),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now()),
+                bigquery.ScalarQueryParameter("role", "STRING", "admin")
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
+        return True
+        
+    except Exception as e:
+        st.error(f"Error creating admin user: {e}")
+        return False
 
 def create_admin_user():
     """Create default admin user if it doesn't exist in BigQuery"""
