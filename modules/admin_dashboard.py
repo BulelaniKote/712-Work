@@ -446,7 +446,7 @@ def app():
         
         try:
             # Display the data relationships diagram
-            st.image("data_relationships.png", caption="Medical Booking System Database Schema", use_column_width=True)
+            st.image("data_relationships.png", caption="Medical Booking System Database Schema", use_container_width=True)
             
             # Add schema description
             st.markdown("""
