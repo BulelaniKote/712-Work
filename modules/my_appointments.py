@@ -92,12 +92,12 @@ def app():
                 if 'SpecialistID' in appointments_df.columns and 'SpecialistID' in specialists_df.columns:
                     merged_df = appointments_df.merge(specialists_df, on='SpecialistID', how='left')
                     
-                    # Debug: Show available columns
-                    st.write("Debug - Available columns after merge:", list(merged_df.columns))
+                    # Debug: Show available columns (can be removed after testing)
+                    # st.write("Debug - Available columns after merge:", list(merged_df.columns))
                     
                     # Check if Specialty column exists, if not, try alternative column names
                     specialty_column = None
-                    possible_specialty_columns = ['Specialty', 'specialty', 'Specialization', 'specialization']
+                    possible_specialty_columns = ['Specialty', 'specialty', 'Specialization', 'specialization', 'Specialty_x', 'Specialty_y']
                     
                     for col in possible_specialty_columns:
                         if col in merged_df.columns:
@@ -106,6 +106,9 @@ def app():
                     
                     if specialty_column:
                         specialty_counts = merged_df[specialty_column].value_counts()
+                        
+                        # Show which column is being used
+                        st.info(f"Using column: **{specialty_column}** for specialty analysis")
                         
                         fig = px.pie(values=specialty_counts.values, names=specialty_counts.index,
                                    title="Appointments by Specialty (BigQuery Data)")
