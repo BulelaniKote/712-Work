@@ -1,0 +1,2 @@
+[server]
+main_file = "gdp-dashboard/streamlit_app.py"
