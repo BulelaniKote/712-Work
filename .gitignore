@@ -13,6 +13,7 @@ medical-booking-system-*.json
 *credentials*.json
 
 # Python cache and temporary files
+modules\__pycache__\
 __pycache__/
 *.py[cod]
 *$py.class
