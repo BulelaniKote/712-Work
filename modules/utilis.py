@@ -53,7 +53,7 @@ def verify_password(password, hashed):
     return hash_password(password) == hashed
 
 def register_user(username, email, password):
-    """Register a new user using JSON file"""
+    """Register a new user using both JSON file and BigQuery"""
     try:
         users_file_path = "users.json"
         
@@ -73,7 +73,7 @@ def register_user(username, email, password):
             if user_info.get('email') == email:
                 return False, "Email already exists"
         
-        # Add new user
+        # Add new user to JSON
         users_data[username] = {
             "email": email,
             "password": hash_password(password),
@@ -81,11 +81,24 @@ def register_user(username, email, password):
             "appointments": []
         }
         
-        # Save back to file
+        # Save back to JSON file
         with open(users_file_path, 'w') as f:
             json.dump(users_data, f, indent=2)
         
-        return True, "User registered successfully"
+        # Also save to BigQuery
+        user_data_for_bigquery = {
+            'username': username,
+            'email': email,
+            'password': hash_password(password),
+            'role': 'patient'
+        }
+        
+        bigquery_success = add_user_to_bigquery(user_data_for_bigquery)
+        
+        if bigquery_success:
+            return True, "User registered successfully in both local storage and BigQuery"
+        else:
+            return True, "User registered locally, but BigQuery sync failed"
         
     except Exception as e:
         return False, f"Registration failed: {str(e)}"
@@ -163,7 +176,7 @@ def get_current_user_data():
         return None
 
 def add_appointment(appointment_data):
-    """Add appointment to JSON file"""
+    """Add appointment to both JSON file and BigQuery"""
     if not is_logged_in():
         return False
     
@@ -198,9 +211,17 @@ def add_appointment(appointment_data):
         
         users_data[username]['appointments'].append(appointment)
         
-        # Save back to file
+        # Save back to JSON file
         with open(users_file_path, 'w') as f:
             json.dump(users_data, f, indent=2)
+        
+        # Also save to BigQuery
+        bigquery_success = add_appointment_to_bigquery(appointment)
+        
+        if bigquery_success:
+            st.success("✅ Appointment saved to both local storage and BigQuery")
+        else:
+            st.warning("⚠️ Appointment saved locally, but BigQuery sync failed")
         
         return True
         
@@ -662,4 +683,160 @@ def create_admin_user():
         
     except Exception as e:
         st.error(f"Error creating admin user: {e}")
+        return False
+
+def add_appointment_to_bigquery(appointment_data):
+    """Add appointment to BigQuery appointments table"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        # Ensure dataset and tables exist
+        ensure_dataset_exists()
+        
+        # Prepare appointment data for BigQuery
+        username = st.session_state.username
+        appointment_date = datetime.strptime(appointment_data['date'], '%Y-%m-%d').date()
+        
+        # Handle different time formats
+        time_str = appointment_data['time']
+        try:
+            # Try parsing as time object first
+            if isinstance(time_str, str):
+                if ':' in time_str:
+                    # Handle formats like "09:00:00" or "09:00 - 10:00 (Morning)"
+                    time_part = time_str.split(' - ')[0]  # Get first part if range
+                    time_part = time_part.split(' (')[0]  # Remove label if present
+                    appointment_time = datetime.strptime(time_part, '%H:%M:%S').time()
+                else:
+                    appointment_time = datetime.strptime(time_str, '%H:%M:%S').time()
+            else:
+                appointment_time = time_str
+        except:
+            # Fallback to current time if parsing fails
+            appointment_time = datetime.now().time()
+        
+        # Insert appointment into BigQuery
+        query = f"""
+        INSERT INTO `{project_id}.assignment_one_1.appointments`
+        (username, name, email, specialty, date, time, reason, status, created_at)
+        VALUES (@username, @name, @email, @specialty, @date, @time, @reason, @status, @created_at)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", username),
+                bigquery.ScalarQueryParameter("name", "STRING", appointment_data['name']),
+                bigquery.ScalarQueryParameter("email", "STRING", appointment_data['email']),
+                bigquery.ScalarQueryParameter("specialty", "STRING", appointment_data['specialty']),
+                bigquery.ScalarQueryParameter("date", "DATE", appointment_date),
+                bigquery.ScalarQueryParameter("time", "TIME", appointment_time),
+                bigquery.ScalarQueryParameter("reason", "STRING", appointment_data.get('reason', '')),
+                bigquery.ScalarQueryParameter("status", "STRING", appointment_data['status']),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now())
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
+        return True
+        
+    except Exception as e:
+        st.error(f"Error adding appointment to BigQuery: {e}")
+        return False
+
+def add_user_to_bigquery(user_data):
+    """Add user to BigQuery users table"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        # Ensure dataset and tables exist
+        ensure_dataset_exists()
+        
+        # Check if user already exists
+        query = f"""
+        SELECT username FROM `{project_id}.assignment_one_1.users`
+        WHERE username = @username
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", user_data['username'])
+            ]
+        )
+        
+        result = client.query(query, job_config=job_config).to_dataframe()
+        
+        if not result.empty:
+            return True  # User already exists
+        
+        # Insert user into BigQuery
+        query = f"""
+        INSERT INTO `{project_id}.assignment_one_1.users`
+        (username, email, password, created_at, role)
+        VALUES (@username, @email, @password, @created_at, @role)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("username", "STRING", user_data['username']),
+                bigquery.ScalarQueryParameter("email", "STRING", user_data['email']),
+                bigquery.ScalarQueryParameter("password", "STRING", user_data['password']),
+                bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", datetime.now()),
+                bigquery.ScalarQueryParameter("role", "STRING", user_data.get('role', 'patient'))
+            ]
+        )
+        
+        client.query(query, job_config=job_config)
+        return True
+        
+    except Exception as e:
+        st.error(f"Error adding user to BigQuery: {e}")
+        return False
+
+def sync_existing_data_to_bigquery():
+    """Sync existing JSON data to BigQuery (one-time migration)"""
+    client, project_id = get_bigquery_client()
+    if not client:
+        return False
+    
+    try:
+        # Ensure dataset and tables exist
+        ensure_dataset_exists()
+        
+        users_file_path = "users.json"
+        if not os.path.exists(users_file_path):
+            return True  # No data to sync
+        
+        with open(users_file_path, 'r') as f:
+            users_data = json.load(f)
+        
+        synced_users = 0
+        synced_appointments = 0
+        
+        # Sync users
+        for username, user_info in users_data.items():
+            user_data_for_bigquery = {
+                'username': username,
+                'email': user_info.get('email', ''),
+                'password': user_info.get('password', ''),
+                'role': 'admin' if username == 'admin' else 'patient'
+            }
+            
+            if add_user_to_bigquery(user_data_for_bigquery):
+                synced_users += 1
+            
+            # Sync appointments for this user
+            appointments = user_info.get('appointments', [])
+            for appointment in appointments:
+                if add_appointment_to_bigquery(appointment):
+                    synced_appointments += 1
+        
+        st.success(f"✅ Data sync completed: {synced_users} users, {synced_appointments} appointments synced to BigQuery")
+        return True
+        
+    except Exception as e:
+        st.error(f"Error syncing data to BigQuery: {e}")
         return False

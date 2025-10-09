@@ -314,6 +314,31 @@ def app():
         st.subheader("🔬 BigQuery Analytics & Data Insights")
         st.markdown("**Advanced analytics powered by BigQuery data**")
         
+        # Data Synchronization Section
+        st.subheader("🔄 Data Synchronization")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔄 Sync Local Data to BigQuery", use_container_width=True):
+                from modules.utilis import sync_existing_data_to_bigquery
+                with st.spinner("Syncing data to BigQuery..."):
+                    success = sync_existing_data_to_bigquery()
+                    if success:
+                        st.success("✅ Data synchronization completed!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Data synchronization failed. Check your BigQuery connection.")
+        
+        with col2:
+            st.info("""
+            **Sync Status:**
+            - Local JSON data ↔ BigQuery database
+            - New appointments automatically sync
+            - New users automatically sync
+            """)
+        
+        st.divider()
+        
         # Get BigQuery data
         specialists_data = get_medical_specialists()
         appointments_data = get_medical_appointments()
